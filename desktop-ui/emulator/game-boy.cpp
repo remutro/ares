@@ -50,30 +50,46 @@ auto GameBoy::load() -> bool {
 }
 
 auto GameBoy::load(Menu menu) -> void {
-    Menu colorEmulationMenu{&menu};
-    colorEmulationMenu.setText("Color Emulation").setIcon(Icon::Device::Display);
-    if(auto options = root->find<ares::Node::Setting::String>("PPU/Screen/Color Emulation")) {
-      Group group;
-      for(auto& setting : options->readAllowedValues()) {
-        MenuRadioItem item{&colorEmulationMenu};
-        item.setText(setting);
-        item.onActivate([=] {
-          if(auto settings = root->find<ares::Node::Setting::String>("PPU/Screen/Color Emulation")) {
-            settings->setValue(setting);
-          }
-        });
-        group.append(item);
-      }
+  Menu colorEmulationMenu{&menu};
+  colorEmulationMenu.setText("Color Emulation").setIcon(Icon::Device::Display);
+  if(auto options = root->find<ares::Node::Setting::String>("PPU/Screen/Color Emulation")) {
+    Group group;
+    for(auto& setting : options->readAllowedValues()) {
+      MenuRadioItem item{&colorEmulationMenu};
+      item.setText(setting);
+      item.onActivate([=] {
+        if(auto settings = root->find<ares::Node::Setting::String>("PPU/Screen/Color Emulation")) {
+          settings->setValue(setting);
+        }
+      });
+      group.append(item);
     }
+  }
 
-    if(auto headphones = root->find<ares::Node::Setting::Boolean>("Headphones")) {
-        MenuCheckItem headphoneItem{&menu};
-        headphoneItem.setText("Headphones").setChecked(headphones->value()).onToggle([=] {
-            if(auto headphones = root->find<ares::Node::Setting::Boolean>("Headphones")) {
-                headphones->setValue(headphoneItem.checked());
-            }
-        });
+  Menu orientationMenu{&menu};
+  orientationMenu.setText("Orientation").setIcon(Icon::Device::Display);
+  if(auto orientations = root->find<ares::Node::Setting::String>("PPU/Screen/Orientation")) {
+    Group group;
+    for(auto& orientation : orientations->readAllowedValues()) {
+      MenuRadioItem item{&orientationMenu};
+      item.setText(orientation);
+      item.onActivate([=] {
+        if(auto orientations = root->find<ares::Node::Setting::String>("PPU/Screen/Orientation")) {
+          orientations->setValue(orientation);
+        }
+      });
+      group.append(item);
     }
+  }
+
+  if(auto headphones = root->find<ares::Node::Setting::Boolean>("Headphones")) {
+      MenuCheckItem headphoneItem{&menu};
+      headphoneItem.setText("Headphones").setChecked(headphones->value()).onToggle([=] {
+          if(auto headphones = root->find<ares::Node::Setting::Boolean>("Headphones")) {
+              headphones->setValue(headphoneItem.checked());
+          }
+      });
+  }
 }
 
 auto GameBoy::save() -> bool {

@@ -3,6 +3,7 @@
 struct VI : Thread, Memory::IO<VI> {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
 
   struct Debugger {
     //debugger.cpp

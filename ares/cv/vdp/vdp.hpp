@@ -1,6 +1,7 @@
 struct VDP : TMS9918, Thread {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
 
   //vdp.cpp
   auto load(Node::Object) -> void;

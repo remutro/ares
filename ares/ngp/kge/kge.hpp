@@ -4,6 +4,7 @@
 struct KGE : Thread {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
   Node::Setting::Boolean interframeBlending;
 
   //vpu.cpp

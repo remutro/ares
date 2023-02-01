@@ -39,6 +39,7 @@ auto GPU::load(Node::Object parent) -> void {
       return a << 48 | r << 32 | g << 16 | b << 0;
     }
   });
+
   screen->setSize(640, 512);
 
   overscan = screen->append<Node::Setting::Boolean>("Overscan", true, [&](auto value) {
@@ -51,6 +52,15 @@ auto GPU::load(Node::Object parent) -> void {
   for(u32 y : range(512)) {
     vram2D[y] = (u16*)&vram.data[y * 2048];
   }
+
+  rotation = screen->append<Node::Setting::String>("Orientation", "0°", [&](auto value) {
+    if(value ==   "0°") screen->setRotation(  0);
+    if(value ==  "90°") screen->setRotation( 90);
+    if(value == "180°") screen->setRotation(180);
+    if(value == "270°") screen->setRotation(270);
+  });
+  rotation->setDynamic(true);
+  rotation->setAllowedValues({"0°", "90°", "180°", "270°"});
 
   debugger.load(node);
 

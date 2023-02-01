@@ -1,5 +1,6 @@
 struct GameGear : Emulator {
   GameGear();
+  auto load(Menu menu) -> void override;
   auto load() -> bool override;
   auto save() -> bool override;
   auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
@@ -24,6 +25,24 @@ GameGear::GameGear() {
     port.append(device); }
 
     ports.append(port);
+  }
+}
+
+auto GameGear::load(Menu menu) -> void {
+  Menu orientationMenu{&menu};
+  orientationMenu.setText("Orientation").setIcon(Icon::Device::Display);
+  if(auto orientations = root->find<ares::Node::Setting::String>("VDP/Screen/Orientation")) {
+    Group group;
+    for(auto& orientation : orientations->readAllowedValues()) {
+      MenuRadioItem item{&orientationMenu};
+      item.setText(orientation);
+      item.onActivate([=] {
+        if(auto orientations = root->find<ares::Node::Setting::String>("VDP/Screen/Orientation")) {
+          orientations->setValue(orientation);
+        }
+      });
+      group.append(item);
+    }
   }
 }
 

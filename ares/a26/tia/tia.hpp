@@ -1,6 +1,7 @@
 struct TIA : Thread {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
   Node::Audio::Stream stream;
 
   auto vlines() const -> u32 { return Region::NTSC() ? 262 : 312; }

@@ -50,6 +50,15 @@ auto VI::load(Node::Object parent) -> void {
   screen->setSize(640, 480);
   #endif
 
+  rotation = screen->append<Node::Setting::String>("Orientation", "0°", [&](auto value) {
+    if(value ==   "0°") screen->setRotation(  0);
+    if(value ==  "90°") screen->setRotation( 90);
+    if(value == "180°") screen->setRotation(180);
+    if(value == "270°") screen->setRotation(270);
+  });
+  rotation->setDynamic(true);
+  rotation->setAllowedValues({"0°", "90°", "180°", "270°"});
+
   debugger.load(node);
 }
 

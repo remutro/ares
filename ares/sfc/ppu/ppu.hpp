@@ -1,6 +1,7 @@
 struct PPUBase {
   struct Implementation : Thread {
     Node::Video::Screen screen;
+    Node::Setting::String rotation;
 
     struct State {
       n1 interlace;

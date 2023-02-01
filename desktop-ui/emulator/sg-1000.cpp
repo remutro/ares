@@ -1,5 +1,6 @@
 struct SG1000 : Emulator {
   SG1000();
+  auto load(Menu menu) -> void override;
   auto load() -> bool override;
   auto save() -> bool override;
   auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
@@ -22,6 +23,24 @@ SG1000::SG1000() {
     port.append(device); }
 
     ports.append(port);
+  }
+}
+
+auto SG1000::load(Menu menu) -> void {
+  Menu orientationMenu{&menu};
+  orientationMenu.setText("Orientation").setIcon(Icon::Device::Display);
+  if(auto orientations = root->find<ares::Node::Setting::String>("VDP/Screen/Orientation")) {
+    Group group;
+    for(auto& orientation : orientations->readAllowedValues()) {
+      MenuRadioItem item{&orientationMenu};
+      item.setText(orientation);
+      item.onActivate([=] {
+        if(auto orientations = root->find<ares::Node::Setting::String>("VDP/Screen/Orientation")) {
+          orientations->setValue(orientation);
+        }
+      });
+      group.append(item);
+    }
   }
 }
 

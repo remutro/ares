@@ -41,6 +41,7 @@ extern VDPBase vdp;
 struct VDP : VDPBase::Implementation {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
   Node::Setting::Boolean overscan;
 
   auto irqLine() const -> bool override { return vdc0.irqLine() | vdc1.irqLine(); }

@@ -1,6 +1,7 @@
 struct PPU : Thread {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
   Node::Setting::String colorEmulationDMG;
   Node::Setting::Boolean colorEmulationCGB;
   Node::Setting::Boolean interframeBlending;

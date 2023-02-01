@@ -1,5 +1,6 @@
 struct Famicom : Emulator {
   Famicom();
+  auto load(Menu menu) -> void override;
   auto load() -> bool override;
   auto save() -> bool override;
   auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
@@ -25,6 +26,24 @@ Famicom::Famicom() {
     port.append(device); }
 
     ports.append(port);
+  }
+}
+
+auto Famicom::load(Menu menu) -> void {
+  Menu orientationMenu{&menu};
+  orientationMenu.setText("Orientation").setIcon(Icon::Device::Display);
+  if(auto orientations = root->find<ares::Node::Setting::String>("PPU/Screen/Orientation")) {
+    Group group;
+    for(auto& orientation : orientations->readAllowedValues()) {
+      MenuRadioItem item{&orientationMenu};
+      item.setText(orientation);
+      item.onActivate([=] {
+        if(auto orientations = root->find<ares::Node::Setting::String>("PPU/Screen/Orientation")) {
+          orientations->setValue(orientation);
+        }
+      });
+      group.append(item);
+    }
   }
 }
 

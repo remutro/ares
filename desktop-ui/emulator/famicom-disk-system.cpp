@@ -36,33 +36,51 @@ FamicomDiskSystem::FamicomDiskSystem() {
 
 auto FamicomDiskSystem::load(Menu menu) -> void {
   Group group;
-  Menu diskMenu{&menu};
-  diskMenu.setText("Disk Drive").setIcon(Icon::Media::Floppy);
+  {
+    Menu diskMenu{&menu};
+    diskMenu.setText("Disk Drive").setIcon(Icon::Media::Floppy);
 
-  MenuRadioItem ejected{&diskMenu};
-  ejected.setText("No Disk").onActivate([&] { emulator->notify("Ejected"); });
-  group.append(ejected);
-  if(game->pak->count() < 2) return (void)ejected.setChecked();
+    MenuRadioItem ejected{&diskMenu};
+    ejected.setText("No Disk").onActivate([&] { emulator->notify("Ejected"); });
+    group.append(ejected);
+    if(game->pak->count() < 2) ejected.setChecked();
 
-  MenuRadioItem disk1sideA{&diskMenu};
-  disk1sideA.setText("Disk 1: Side A").onActivate([&] { emulator->notify("Disk 1: Side A"); });
-  group.append(disk1sideA);
-  if(game->pak->count() < 3) return (void)disk1sideA.setChecked();
+    MenuRadioItem disk1sideA{&diskMenu};
+    disk1sideA.setText("Disk 1: Side A").onActivate([&] { emulator->notify("Disk 1: Side A"); });
+    group.append(disk1sideA);
+    if(game->pak->count() < 3) disk1sideA.setChecked();
 
-  MenuRadioItem disk1sideB{&diskMenu};
-  disk1sideB.setText("Disk 1: Side B").onActivate([&] { emulator->notify("Disk 1: Side B"); });
-  group.append(disk1sideB);
-  if(game->pak->count() < 4) return (void)disk1sideA.setChecked();
+    MenuRadioItem disk1sideB{&diskMenu};
+    disk1sideB.setText("Disk 1: Side B").onActivate([&] { emulator->notify("Disk 1: Side B"); });
+    group.append(disk1sideB);
+    if(game->pak->count() < 4) disk1sideA.setChecked();
 
-  MenuRadioItem disk2sideA{&diskMenu};
-  disk2sideA.setText("Disk 2: Side A").onActivate([&] { emulator->notify("Disk 2: Side A"); });
-  group.append(disk2sideA);
-  if(game->pak->count() < 5) return (void)disk1sideA.setChecked();
+    MenuRadioItem disk2sideA{&diskMenu};
+    disk2sideA.setText("Disk 2: Side A").onActivate([&] { emulator->notify("Disk 2: Side A"); });
+    group.append(disk2sideA);
+    if(game->pak->count() < 5) disk1sideA.setChecked();
 
-  MenuRadioItem disk2sideB{&diskMenu};
-  disk2sideB.setText("Disk 2: Side B").onActivate([&] { emulator->notify("Disk 2: Side B"); });
-  group.append(disk2sideB);
-  return (void)disk1sideA.setChecked();
+    MenuRadioItem disk2sideB{&diskMenu};
+    disk2sideB.setText("Disk 2: Side B").onActivate([&] { emulator->notify("Disk 2: Side B"); });
+    group.append(disk2sideB);
+    disk1sideA.setChecked();
+  }
+
+  Menu orientationMenu{&menu};
+  orientationMenu.setText("Orientation").setIcon(Icon::Device::Display);
+  if(auto orientations = root->find<ares::Node::Setting::String>("PPU/Screen/Orientation")) {
+    Group group;
+    for(auto& orientation : orientations->readAllowedValues()) {
+      MenuRadioItem item{&orientationMenu};
+      item.setText(orientation);
+      item.onActivate([=] {
+        if(auto orientations = root->find<ares::Node::Setting::String>("PPU/Screen/Orientation")) {
+          orientations->setValue(orientation);
+        }
+      });
+      group.append(item);
+    }
+  }
 }
 
 auto FamicomDiskSystem::load() -> bool {

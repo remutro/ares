@@ -5,6 +5,7 @@
 struct VDP : Thread {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
   Node::Setting::Boolean overscan;
 
   struct Debugger {

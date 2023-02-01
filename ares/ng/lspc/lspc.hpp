@@ -3,6 +3,7 @@
 struct LSPC : Thread {
   Node::Object node;
   Node::Video::Screen screen;
+  Node::Setting::String rotation;
   Memory::Writable<n16> vram;
   Memory::Writable<n16> pram;
 

@@ -1,5 +1,6 @@
 struct NeoGeoAES : Emulator {
   NeoGeoAES();
+  auto load(Menu) -> void override;
   auto load() -> bool override;
   auto save() -> bool override;
   auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
@@ -29,6 +30,24 @@ NeoGeoAES::NeoGeoAES() {
     port.append(device); }
 
     ports.append(port);
+  }
+}
+
+auto NeoGeoAES::load(Menu menu) -> void {
+  Menu orientationMenu{&menu};
+  orientationMenu.setText("Orientation").setIcon(Icon::Device::Display);
+  if(auto orientations = root->find<ares::Node::Setting::String>("LSPC/Screen/Orientation")) {
+    Group group;
+    for(auto& orientation : orientations->readAllowedValues()) {
+      MenuRadioItem item{&orientationMenu};
+      item.setText(orientation);
+      item.onActivate([=] {
+        if(auto orientations = root->find<ares::Node::Setting::String>("LSPC/Screen/Orientation")) {
+          orientations->setValue(orientation);
+        }
+      });
+      group.append(item);
+    }
   }
 }
 
