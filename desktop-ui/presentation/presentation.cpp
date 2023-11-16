@@ -519,6 +519,101 @@ auto Presentation::refreshSystemMenu() -> void {
         if(peripheralItem.text() == connected->name()) peripheralItem.setChecked();
       }
     }
+
+    // Allow for additional paks for N64 gamepads
+    if((emulator->name == "Nintendo 64" || emulator->name == "Nintendo 64DD") 
+        && port->type() == "Controller") {
+
+      const string portNum = port->name()[port->name().length() - 1];    
+
+      if(portMenu.actionCount() > 0) portMenu.append(MenuSeparator());
+      Menu pakMenu{&portMenu};
+      pakMenu.setText("Pak");
+      Group pakGroup;
+
+      MenuRadioItem nothing{&pakMenu};;
+      nothing.setText("Nothing");
+      nothing.setAttribute<ares::Node::Port>("port", port);
+      nothing.onActivate([=] { 
+        auto port = nothing.attribute<ares::Node::Port>("port");
+        const string portName = port->name();
+        if(auto port = emulator->root->find<ares::Node::Port>(portName)) {
+          port->disconnect();
+          auto peripheral = port->allocate("Gamepad");
+          port->connect();
+        }
+      });
+      pakGroup.append(nothing);
+
+      MenuRadioItem cpak{&pakMenu};
+      cpak.setAttribute<ares::Node::Port>("port", port);
+      cpak.setText("Controller Pak");
+      cpak.onActivate([=] {  
+        auto port = cpak.attribute<ares::Node::Port>("port");
+        const string portName = port->name();
+        if(auto port = emulator->root->find<ares::Node::Port>(portName)) {
+          port->disconnect();
+          auto peripheral = port->allocate("Gamepad");
+          port->connect();
+          if(auto port = peripheral->find<ares::Node::Port>("Pak")) {
+            emulator->gamepad = mia::Pak::create("Nintendo 64");
+            emulator->gamepad->pak->append("save.pak", 32_KiB);
+            string pakExt = ".pak";
+            if(portNum != "1") { pakExt = string(".", portNum, ".pak");}
+            emulator->gamepad->load("save.pak", pakExt, emulator->game->location);
+            port->allocate("Controller Pak");
+            port->connect();
+          }
+        }
+      });
+      pakGroup.append(cpak);
+
+      MenuRadioItem rpak{&pakMenu};
+      rpak.setAttribute<ares::Node::Port>("port", port);
+      rpak.setText("Rumble Pak");
+      rpak.onActivate([=] { 
+        auto port = rpak.attribute<ares::Node::Port>("port");
+        const string portName = port->name();
+        if(auto port = emulator->root->find<ares::Node::Port>(portName)) {
+          port->disconnect();
+          auto peripheral = port->allocate("Gamepad");
+          port->connect();
+          if(auto port = peripheral->find<ares::Node::Port>("Pak")) {
+            port->allocate("Rumble Pak");
+            port->connect();
+          }
+        }
+      });
+      pakGroup.append(rpak);
+
+      // set currently enabled pak (based on known initialization routine)
+      if(emulator->game->pak->attribute("cpak").boolean() && portNum == "1") cpak.setChecked();
+      else if(emulator->game->pak->attribute("rpak").boolean()) rpak.setChecked();
+      else nothing.setChecked();
+      /*
+      if(auto port = emulator->root->find<ares::Node::Port>("Controller Port 1")) {
+        printf("First port name: %s\n", port->name().data());
+        if(auto peripheral = port->find<ares::Node::Peripheral>("Gamepad")) {
+          printf("Peripheral name: %s\n", peripheral->name().data());
+          for(auto port : ares::Node::enumerate<ares::Node::Port>(port)) {
+            printf("All ports name: %s\n", port->name().data());
+          }
+          for(auto port : ares::Node::enumerate<ares::Node::Port>(peripheral)) {
+            printf("All peripherals name: %s\n", port->name().data());
+          }
+          if(auto port = peripheral->find<ares::Node::Port>("Pak")) {
+            for(auto port : ares::Node::enumerate<ares::Node::Peripheral>(port)) {
+              printf("All port peripherals name: %s\n", port->name().data());
+            }
+            printf("Second port name: %s\n", port->name().data());
+            printf("Port type: %s\n", port->type().data());
+            if(port->name() == "Controller Pak") cpak.setChecked();
+            else if(port->name() == "Rumble Pak") rpak.setChecked();
+            else nothing.setChecked();
+          }
+        }
+      }*/
+    }
   }
 
   if(portsFound > 0) systemMenu.append(MenuSeparator());
