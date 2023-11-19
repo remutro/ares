@@ -557,10 +557,13 @@ auto Presentation::refreshSystemMenu() -> void {
           port->connect();
           if(auto port = peripheral->find<ares::Node::Port>("Pak")) {
             emulator->gamepad = mia::Pak::create("Nintendo 64");
-            emulator->gamepad->pak->append("save.pak", 32_KiB);
-            string pakExt = ".pak";
-            if(portNum != "1") { pakExt = string(".", portNum, ".pak");}
-            emulator->gamepad->load("save.pak", pakExt, emulator->game->location);
+            string pakName = "save.pak", pakExt = ".pak";
+            if(portNum != "1") { 
+              pakName = string("save.", portNum, ".pak");
+              pakExt = string(".", portNum, ".pak"); 
+            }
+            emulator->gamepad->pak->append(pakName, 32_KiB);
+            emulator->gamepad->load(pakName, pakExt, emulator->game->location);
             port->allocate("Controller Pak");
             port->connect();
           }
@@ -586,35 +589,60 @@ auto Presentation::refreshSystemMenu() -> void {
       });
       pakGroup.append(rpak);
 
-      // set currently enabled pak (based on known initialization routine)
-      if(emulator->game->pak->attribute("cpak").boolean() && portNum == "1") cpak.setChecked();
-      else if(emulator->game->pak->attribute("rpak").boolean()) rpak.setChecked();
-      else nothing.setChecked();
-      /*
-      if(auto port = emulator->root->find<ares::Node::Port>("Controller Port 1")) {
-        printf("First port name: %s\n", port->name().data());
-        if(auto peripheral = port->find<ares::Node::Peripheral>("Gamepad")) {
-          printf("Peripheral name: %s\n", peripheral->name().data());
-          for(auto port : ares::Node::enumerate<ares::Node::Port>(port)) {
-            printf("All ports name: %s\n", port->name().data());
-          }
-          for(auto port : ares::Node::enumerate<ares::Node::Port>(peripheral)) {
-            printf("All peripherals name: %s\n", port->name().data());
-          }
+      MenuRadioItem tpak{&pakMenu};
+      tpak.setAttribute<ares::Node::Port>("port", port);
+      tpak.setText("Transfer Pak");
+      tpak.setEnabled(false); // More needed for this to work correctly
+      tpak.onActivate([=] { 
+        auto port = tpak.attribute<ares::Node::Port>("port");
+        const string portName = port->name();
+        if(auto port = emulator->root->find<ares::Node::Port>(portName)) {
+          port->disconnect();
+          auto peripheral = port->allocate("Gamepad");
+          port->connect();
           if(auto port = peripheral->find<ares::Node::Port>("Pak")) {
-            for(auto port : ares::Node::enumerate<ares::Node::Peripheral>(port)) {
-              printf("All port peripherals name: %s\n", port->name().data());
-            }
-            printf("Second port name: %s\n", port->name().data());
-            printf("Port type: %s\n", port->type().data());
-            if(port->name() == "Controller Pak") cpak.setChecked();
-            else if(port->name() == "Rumble Pak") rpak.setChecked();
-            else nothing.setChecked();
+            port->allocate("Transfer Pak");
+            port->connect();
+            // More needed for this to work correctly
           }
         }
-      }*/
+      });
+      pakGroup.append(tpak);
+
+      // set currently enabled pak (based on initialization routine default setup in: desktop-ui/emulator/nintendo-64.cpp )
+      if(portNum == "1") {
+        if(emulator->game->pak->attribute("tpak").boolean()) tpak.setChecked();
+        else if(emulator->game->pak->attribute("cpak").boolean()) cpak.setChecked();
+      }
+      else if(emulator->game->pak->attribute("rpak").boolean()) rpak.setChecked();
+      else nothing.setChecked();
     }
   }
+
+  /*
+  if(auto port = emulator->root->find<ares::Node::Port>("Controller Port 1")) {
+    printf("First port name: %s\n", port->name().data());
+    if(auto peripheral = port->find<ares::Node::Peripheral>("Gamepad")) {
+      printf("Peripheral name: %s\n", peripheral->name().data());
+      for(auto port : ares::Node::enumerate<ares::Node::Port>(port)) {
+        printf("All ports name: %s\n", port->name().data());
+      }
+      for(auto port : ares::Node::enumerate<ares::Node::Port>(peripheral)) {
+        printf("All peripherals name: %s\n", port->name().data());
+      }
+      if(auto port = peripheral->find<ares::Node::Port>("Pak")) {
+        for(auto port : ares::Node::enumerate<ares::Node::Peripheral>(port)) {
+          printf("All port peripherals name: %s\n", port->name().data());
+        }
+        printf("Second port name: %s\n", port->name().data());
+        printf("Port type: %s\n", port->type().data());
+        if(port->name() == "Controller Pak") cpak.setChecked();
+        else if(port->name() == "Rumble Pak") rpak.setChecked();
+        else if(port->name() == "Transfer Pak") tpak.setChecked();
+        else nothing.setChecked();
+      }
+    }
+  }*/
 
   if(portsFound > 0) systemMenu.append(MenuSeparator());
 
