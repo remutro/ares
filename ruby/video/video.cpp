@@ -7,7 +7,7 @@
 #endif
 
 #if defined(VIDEO_DIRECT3D11)
-  #include <ruby/video/direct3d11.cpp>
+  #include <ruby/video/directx11/direct3d11.cpp>
 #endif
 
 #if defined(VIDEO_GLX)
