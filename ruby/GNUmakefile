@@ -86,6 +86,7 @@ ruby.options :=
 ruby.options += $(if $(findstring video.cgl,$(ruby)),-framework OpenGL)
 ruby.options += $(if $(findstring video.direct3d9,$(ruby)),$(call lib,d3d9))
 ruby.options += $(if $(findstring video.direct3d11,$(ruby)),$(call lib,d3d11))
+ruby.options += $(if $(findstring video.direct3d11,$(ruby)),$(call lib,d3dcompiler))
 ruby.options += $(if $(findstring video.glx,$(ruby)),-lGL)
 ruby.options += $(if $(findstring video.wgl,$(ruby)),$(call lib,opengl32 dwmapi))
 ruby.options += $(if $(findstring video.xvideo,$(ruby)),-lXv)
