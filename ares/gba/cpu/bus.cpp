@@ -2,27 +2,27 @@ auto CPU::sleep() -> void {
   prefetchStep(1);
 }
 
-auto CPU::get(u32 mode, n32 address) -> n32 {
+template <bool UseDebugger>
+inline auto CPU::getBus(u32 mode, n32 address) -> n32 {
   u32 clocks = _wait(mode, address);
   u32 word = pipeline.fetch.instruction;
-  if(context.dmaActive) word = dmabus.data;
 
   if(address >= 0x1000'0000) {
-    prefetchStep(clocks);
+    if constexpr(!UseDebugger) prefetchStep(clocks);
   } else if(address & 0x0800'0000) {
     if(mode & Prefetch && wait.prefetch) {
+      dmaRun();
       prefetchSync(address);
-      word = prefetchRead();
-      if(mode & Word) word |= prefetchRead() << 16;
+      word = prefetchRead(mode);
     } else {
-      if(!context.dmaActive) prefetchWait();
-      step(clocks - 1);
+      if constexpr(!UseDebugger) prefetchReset();
+      if constexpr(!UseDebugger) step(clocks);
       word = cartridge.read(mode, address);
-      step(1);
     }
   } else {
     if(memory.biosSwap && address < 0x0400'0000) address ^= 0x0200'0000;
-    prefetchStep(clocks);
+    if constexpr(!UseDebugger) prefetchStep(clocks);
+    if(auto result = platform->cheat(address)) return *result;
          if(address <  0x0200'0000) word = bios.read(mode, address);
     else if(address <  0x0300'0000) word = readEWRAM(mode, address);
     else if(address <  0x0400'0000) word = readIWRAM(mode, address);
@@ -36,13 +36,21 @@ auto CPU::get(u32 mode, n32 address) -> n32 {
   return word;
 }
 
+auto CPU::get(u32 mode, n32 address) -> n32 {
+  return getBus<false>(mode, address);
+}
+
+auto CPU::getDebugger(u32 mode, n32 address) -> n32 {
+  return getBus<true>(mode, address);
+}
+
 auto CPU::set(u32 mode, n32 address, n32 word) -> void {
   u32 clocks = _wait(mode, address);
 
   if(address >= 0x1000'0000) {
     prefetchStep(clocks);
   } else if(address & 0x0800'0000) {
-    if(!context.dmaActive) prefetchWait();
+    prefetchReset();
     step(clocks);
     cartridge.write(mode, address, word);
   } else {

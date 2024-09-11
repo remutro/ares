@@ -2,11 +2,12 @@ struct MegaCD32X : Emulator {
   MegaCD32X();
   auto load() -> bool override;
   auto load(Menu) -> void override;
+  auto unload() -> void override;
   auto save() -> bool override;
   auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
 
   u32 regionID = 0;
-  Timer discTrayTimer;
+  sTimer discTrayTimer;
 };
 
 MegaCD32X::MegaCD32X() {
@@ -29,6 +30,15 @@ MegaCD32X::MegaCD32X() {
     device.digital("Z",     virtualPorts[id].pad.r_bumper);
     device.digital("Mode",  virtualPorts[id].pad.select);
     device.digital("Start", virtualPorts[id].pad.start);
+    port.append(device); }
+
+  { InputDevice device{"Mega Mouse"};
+    device.relative("X",      virtualPorts[id].mouse.x);
+    device.relative("Y",      virtualPorts[id].mouse.y);
+    device.digital ("Left",   virtualPorts[id].mouse.left);
+    device.digital ("Right",  virtualPorts[id].mouse.right);
+    device.digital ("Middle", virtualPorts[id].mouse.middle);
+    device.digital ("Start",  virtualPorts[id].mouse.extra);
     port.append(device); }
 
     ports.append(port);
@@ -54,6 +64,8 @@ auto MegaCD32X::load() -> bool {
 
   system = mia::System::create("Mega CD 32X");
   if(!system->load(firmware[regionID].location)) return errorFirmware(firmware[regionID], "Mega CD"), false;
+
+  ares::MegaDrive::option("Recompiler", !settings.general.forceInterpreter);
 
   if(!ares::MegaDrive::load(root, {"[Sega] Mega CD 32X (", region, ")"})) return false;
 
@@ -84,6 +96,8 @@ auto MegaCD32X::load() -> bool {
     }
   }
 
+  discTrayTimer = Timer{};
+
   return true;
 }
 
@@ -101,8 +115,8 @@ auto MegaCD32X::load(Menu menu) -> void {
     }
 
     //give the emulator core a few seconds to notice an empty drive state before reconnecting
-    discTrayTimer.onActivate([&] {
-      discTrayTimer.setEnabled(false);
+    discTrayTimer->onActivate([&] {
+      discTrayTimer->setEnabled(false);
       auto tray = root->find<ares::Node::Port>("Mega CD/Disc Tray");
       tray->allocate();
       tray->connect();
@@ -110,6 +124,10 @@ auto MegaCD32X::load(Menu menu) -> void {
   });
 }
 
+auto MegaCD32X::unload() -> void {
+  Emulator::unload();
+  discTrayTimer.reset();
+}
 
 auto MegaCD32X::save() -> bool {
   root->save();

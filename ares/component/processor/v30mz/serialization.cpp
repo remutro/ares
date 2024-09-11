@@ -4,13 +4,18 @@ auto V30MZ::serialize(serializer& s) -> void {
   s(state.prefix);
 
   s(opcode);
-  s(prefixes);
+
+  s(prefix.count);
+  s(prefix.lock);
+  s(prefix.repeat);
+  s(prefix.segment);
 
   s(modrm.mod);
   s(modrm.reg);
   s(modrm.mem);
   s(modrm.segment);
   s(modrm.address);
+  s(modrm.useAddress);
 
   s(AW);
   s(CW);

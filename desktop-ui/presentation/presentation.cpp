@@ -2,11 +2,7 @@
 namespace Instances { Instance<Presentation> presentation; }
 Presentation& presentation = Instances::presentation();
 
-#if defined(PLATFORM_MACOS)
 #define ELLIPSIS "\u2026"
-#else
-#define ELLIPSIS " ..."
-#endif
 
 Presentation::Presentation() {
   loadMenu.setText("Load");
@@ -180,6 +176,9 @@ Presentation::Presentation() {
   manifestViewerAction.setText("Manifest").setIcon(Icon::Emblem::Binary).onActivate([&] {
     toolsWindow.show("Manifest");
   });
+  cheatEditorAction.setText("Cheats").setIcon(Icon::Emblem::File).onActivate([&] {
+    toolsWindow.show("Cheats");
+  });
   #if !defined(PLATFORM_MACOS)
   // Cocoa hiro is missing the hex editor widget
   memoryEditorAction.setText("Memory").setIcon(Icon::Device::Storage).onActivate([&] {
@@ -261,6 +260,8 @@ Presentation::Presentation() {
     program.quit();
   });
 
+  loadEmulators();
+
   resizeWindow();
   setTitle({ares::Name, " v", ares::Version});
   setAssociatedFile();
@@ -333,7 +334,7 @@ auto Presentation::loadEmulators() -> void {
     auto entry = settings.recent.game[index];
     auto system = entry.split(";", 1L)(0);
     auto location = entry.split(";", 1L)(1);
-    if(inode::exists(location)) {  //remove missing games
+    if(location.length()) {  //remove missing games
       if(!recentGames.find(entry)) {  //remove duplicate entries
         recentGames.append(entry);
       }
@@ -357,6 +358,18 @@ auto Presentation::loadEmulators() -> void {
       item.setIconForFile(location);
       item.setText({Location::base(location).trimRight("/"), " (", system, ")"});
       item.onActivate([=] {
+        if(!inode::exists(location)) {
+          MessageDialog()
+            .setTitle("Error")
+            .setText({location, " does not exist"})
+            .setAlignment(presentation)
+            .error();
+
+          //remove the entry from the recent games list
+          settings.recent.game[index] = {};
+          loadEmulators();
+          return;
+        }
         for(auto& emulator : emulators) {
           if(emulator->name == system) {
             return (void)program.load(emulator, location);
@@ -685,65 +698,110 @@ auto Presentation::loadShaders() -> void {
 
   Group shaders;
 
-  MenuRadioItem none{&videoShaderMenu};
-  none.setText("None").onActivate([&] {
+  MenuCheckItem none{&videoShaderMenu};
+  none.setText("None").onToggle([&] {
     settings.video.shader = "None";
     ruby::video.setShader(settings.video.shader);
+    loadShaders();
   });
   shaders.append(none);
 
-  MenuRadioItem blur{&videoShaderMenu};
-  blur.setText("Blur").onActivate([&] {
-    settings.video.shader = "Blur";
-    ruby::video.setShader(settings.video.shader);
-  });
-  shaders.append(blur);
+  string location = locate("Shaders/");
 
-  auto location = locate("Shaders/");
+  if(shaderDirectories.size() == 0) {
+    function<void(string)> findShaderDirectories = [&](string path) {
+      for(auto &entry: directory::folders(path)) findShaderDirectories({path, entry});
+      auto files = directory::files(path, "*.slangp");
+      if(files.size() > 0) shaderDirectories.append((string({path}).trimLeft(location, 1L)));
+    };
+    findShaderDirectories(location);
 
-  if(ruby::video.driver() == "OpenGL 3.2") {
-    for(auto shader : directory::folders(location, "*.shader")) {
-      if(shaders.objectCount() == 2) videoShaderMenu.append(MenuSeparator());
-      MenuRadioItem item{&videoShaderMenu};
-      item.setText(string{shader}.trimRight(".shader/", 1L)).onActivate([=] {
-        settings.video.shader = {location, shader};
-        ruby::video.setShader(settings.video.shader);
-      });
-      shaders.append(item);
+    // Sort by name and depth such that child folders appear after their parents
+    shaderDirectories.sort([](const string &lhs, const string &rhs) {
+      auto lhsParts = lhs.split("/");
+      auto rhsParts = rhs.split("/");
+      for(u32 i : range(min(lhsParts.size(), rhsParts.size()))) {
+        if(lhsParts[i] != rhsParts[i]) return lhsParts[i] < rhsParts[i];
+      }
+      return lhsParts.size() < rhsParts.size();
+    });
+  }
+
+  if(ruby::video.hasShader()) {
+    for(auto &directory : shaderDirectories) {
+      auto parts = directory.split("/");
+      Menu parent = videoShaderMenu;
+
+      if(directory != "") {
+        for (auto &part: parts) {
+          if(part == "") continue;
+          Menu child;
+          bool found = false;
+          for(auto &action: parent.actions()) {
+            if(auto menu = action.cast<Menu>()) {
+              if(menu.text() == part) {
+                child = menu;
+                found = true;
+                break;
+              }
+            }
+          }
+
+          if(found) {
+            parent = child;
+          } else {
+            Menu newMenu{&parent};
+            newMenu.setText(part);
+            parent = newMenu;
+          }
+        }
+      }
+
+      auto files = directory::files({location, directory}, "*.slangp");
+      for(auto &file: files) {
+        MenuCheckItem item{&parent};
+        item.setAttribute("file", {directory, file});
+        item.setText(string{file}.trimRight(".slangp", 1L)).onToggle([=] {
+          settings.video.shader = {directory, file};
+          ruby::video.setShader({location, settings.video.shader});
+          loadShaders();
+        });
+        shaders.append(item);
+      }
     }
   }
 
   if(program.startShader) {
     string existingShader = settings.video.shader;
 
-    if(!program.startShader.imatch("None") &&
-       !program.startShader.imatch("Blur")) {
-        settings.video.shader = {location, program.startShader, ".shader/"};
+    if(!program.startShader.imatch("None")) {
+      settings.video.shader = {location, program.startShader, ".slangp"};
     } else {
-        settings.video.shader = program.startShader;
+      settings.video.shader = program.startShader;
     }
 
-    if(inode::exists(settings.video.shader) ||
-       settings.video.shader.imatch("None") ||
-       settings.video.shader.imatch("Blur")) {
-        ruby::video.setShader(settings.video.shader);
+    if(inode::exists(settings.video.shader)) {
+      ruby::video.setShader({location, settings.video.shader});
+      loadShaders();
+    } else if(settings.video.shader.imatch("None")) {
+      ruby::video.setShader("None");
+      loadShaders();
     } else {
-        hiro::MessageDialog()
-            .setTitle("Warning")
-            .setAlignment(hiro::Alignment::Center)
-            .setText({ "Requested shader not found: ", settings.video.shader , "\nUsing existing defined shader: ", existingShader })
-            .warning();
-        settings.video.shader = existingShader;
+      hiro::MessageDialog()
+          .setTitle("Warning")
+          .setAlignment(hiro::Alignment::Center)
+          .setText({ "Requested shader not found: ", settings.video.shader , "\nUsing existing defined shader: ", existingShader })
+          .warning();
+      settings.video.shader = existingShader;
     }
   }
 
   if(settings.video.shader.imatch("None")) {none.setChecked(); settings.video.shader = "None";}
-  if(settings.video.shader.imatch("Blur")) {blur.setChecked(); settings.video.shader = "Blur";}
-  for(auto item : shaders.objects<MenuRadioItem>()) {
-    string fullPath = {location, item.text(), ".shader/"};
-    if(settings.video.shader.imatch(fullPath)) {
+  for(auto item : shaders.objects<MenuCheckItem>()) {
+    if(settings.video.shader.imatch(item.attribute("file"))) {
       item.setChecked();
-      settings.video.shader = fullPath;
+      settings.video.shader = item.attribute("file");
+      ruby::video.setShader({location, settings.video.shader});
     }
   }
 }

@@ -3,10 +3,17 @@ auto DriverSettings::construct() -> void {
   setVisible(false);
 
   videoLabel.setText("Video").setFont(Font().setBold());
+  videoDriverList.onChange([&] {
+    bool enabled = false;
+    if(videoDriverList.selected().text() != settings.video.driver) { enabled = true; }
+    videoDriverAssign.setEnabled(enabled);
+  });
   videoDriverLabel.setText("Driver:");
-  videoDriverAssign.setText("Reload").onActivate([&] {
+  videoDriverAssign.setText("Apply").setEnabled(false).onActivate([&] {
     settings.video.driver = videoDriverList.selected().text();
-    videoDriverUpdate();
+    if (videoDriverUpdate()) {
+      videoDriverAssign.setEnabled(false);
+    }
   });
   videoMonitorLabel.setText("Fullscreen monitor:");
   videoMonitorList.onChange([&] {
@@ -20,10 +27,12 @@ auto DriverSettings::construct() -> void {
     program.videoFormatUpdate();
     videoRefresh();
   });
+#if !defined(PLATFORM_MACOS)
   videoExclusiveToggle.setText("Exclusive mode").onToggle([&] {
     settings.video.exclusive = videoExclusiveToggle.checked();
     ruby::video.setExclusive(settings.video.exclusive);
   });
+#endif
   videoBlockingToggle.setText("Synchronize").onToggle([&] {
     settings.video.blocking = videoBlockingToggle.checked();
     ruby::video.setBlocking(settings.video.blocking);
@@ -32,12 +41,34 @@ auto DriverSettings::construct() -> void {
     settings.video.flush = videoFlushToggle.checked();
     ruby::video.setFlush(settings.video.flush);
   });
+#if defined(PLATFORM_MACOS)
+  videoColorSpaceToggle.setText("Force sRGB").onToggle([&] {
+    settings.video.forceSRGB = videoColorSpaceToggle.checked();
+    ruby::video.setForceSRGB(settings.video.forceSRGB);
+  });
+  videoThreadedRendererToggle.setText("Threaded").onToggle([&] {
+    settings.video.threadedRenderer = videoThreadedRendererToggle.checked();
+    ruby::video.setThreadedRenderer(settings.video.threadedRenderer);
+  });
+  videoNativeFullScreenToggle.setText("Use native fullscreen").onToggle([&] {
+    settings.video.nativeFullScreen = videoNativeFullScreenToggle.checked();
+    ruby::video.setNativeFullScreen(settings.video.nativeFullScreen);
+    videoRefresh();
+  });
+#endif
 
   audioLabel.setText("Audio").setFont(Font().setBold());
+  audioDriverList.onChange([&] {
+    bool enabled = false;
+    if(audioDriverList.selected().text() != settings.audio.driver) { enabled = true; }
+    audioDriverAssign.setEnabled(enabled);
+  });
   audioDriverLabel.setText("Driver:");
-  audioDriverAssign.setText("Reload").onActivate([&] {
+  audioDriverAssign.setText("Apply").setEnabled(false).onActivate([&] {
     settings.audio.driver = audioDriverList.selected().text();
-    audioDriverUpdate();
+    if (audioDriverUpdate()) {
+      audioDriverAssign.setEnabled(false);
+    }
   });
   audioDeviceLabel.setText("Output device:");
   audioDeviceList.onChange([&] {
@@ -71,10 +102,17 @@ auto DriverSettings::construct() -> void {
   });
 
   inputLabel.setText("Input").setFont(Font().setBold());
+  inputDriverList.onChange([&] {
+    bool enabled = false;
+    if(inputDriverList.selected().text() != settings.input.driver) { enabled = true; }
+    inputDriverAssign.setEnabled(enabled);
+  });
   inputDriverLabel.setText("Driver:");
-  inputDriverAssign.setText("Reload").onActivate([&] {
+  inputDriverAssign.setText("Apply").setEnabled(false).onActivate([&] {
     settings.input.driver = inputDriverList.selected().text();
-    inputDriverUpdate();
+    if (inputDriverUpdate()) {
+      inputDriverAssign.setEnabled(false);
+    }
   });
   inputDefocusLabel.setText("When focus is lost:");
   inputDefocusPause.setText("Pause emulation").onActivate([&] {
@@ -89,6 +127,8 @@ auto DriverSettings::construct() -> void {
   if(settings.input.defocus == "Pause") inputDefocusPause.setChecked();
   if(settings.input.defocus == "Block") inputDefocusBlock.setChecked();
   if(settings.input.defocus == "Allow") inputDefocusAllow.setChecked();
+
+  driverApplyHint.setText("Note: You must click on the 'Apply' button to update and save changes to driver selection.").setFont(Font().setSize(8.0)).setForegroundColor(SystemColor::Sublabel);
     
   videoDriverLayout.setPadding(12_sx, 0);
   videoPropertyLayout.setPadding(12_sx, 0);
@@ -120,21 +160,29 @@ auto DriverSettings::videoRefresh() -> void {
     item.setText(format);
     if(format == ruby::video.format()) item.setSelected();
   }
-  videoMonitorList.setEnabled(videoMonitorList.itemCount() > 1);
+  videoMonitorList.setEnabled(videoMonitorList.itemCount() > 1 && ruby::video.hasMonitor());
   videoFormatList.setEnabled(0 && videoFormatList.itemCount() > 1);
+#if !defined(PLATFORM_MACOS)
   videoExclusiveToggle.setChecked(ruby::video.exclusive()).setEnabled(ruby::video.hasExclusive());
+#endif
   videoBlockingToggle.setChecked(ruby::video.blocking()).setEnabled(ruby::video.hasBlocking());
+#if defined(PLATFORM_MACOS)
+  videoColorSpaceToggle.setChecked(ruby::video.forceSRGB()).setEnabled(ruby::video.hasForceSRGB());
+  videoThreadedRendererToggle.setChecked(ruby::video.threadedRenderer()).setEnabled(ruby::video.hasThreadedRenderer());
+  videoNativeFullScreenToggle.setChecked(ruby::video.nativeFullScreen()).setEnabled(ruby::video.hasNativeFullScreen());
+#endif
   videoFlushToggle.setChecked(ruby::video.flush()).setEnabled(ruby::video.hasFlush());
   VerticalLayout::resize();
 }
 
-auto DriverSettings::videoDriverUpdate() -> void {
+auto DriverSettings::videoDriverUpdate() -> bool {
   if(emulator && settings.video.driver != "None" && MessageDialog(
     "Warning: incompatible drivers may cause this software to crash.\n"
     "Are you sure you want to change this driver while a game is loaded?"
-  ).setAlignment(settingsWindow).question() != "Yes") return;
+  ).setAlignment(settingsWindow).question() != "Yes") return false;
   program.videoDriverUpdate();
   videoRefresh();
+  return true;
 }
 
 auto DriverSettings::audioRefresh() -> void {
@@ -169,13 +217,14 @@ auto DriverSettings::audioRefresh() -> void {
   VerticalLayout::resize();
 }
 
-auto DriverSettings::audioDriverUpdate() -> void {
+auto DriverSettings::audioDriverUpdate() -> bool {
   if(emulator && settings.audio.driver != "None" && MessageDialog(
     "Warning: incompatible drivers may cause this software to crash.\n"
     "Are you sure you want to change this driver while a game is loaded?"
-  ).setAlignment(settingsWindow).question() != "Yes") return;
+  ).setAlignment(settingsWindow).question() != "Yes") return false;
   program.audioDriverUpdate();
   audioRefresh();
+  return true;
 }
 
 auto DriverSettings::inputRefresh() -> void {
@@ -188,11 +237,12 @@ auto DriverSettings::inputRefresh() -> void {
   VerticalLayout::resize();
 }
 
-auto DriverSettings::inputDriverUpdate() -> void {
+auto DriverSettings::inputDriverUpdate() -> bool {
   if(emulator && settings.input.driver != "None" && MessageDialog(
     "Warning: incompatible drivers may cause this software to crash.\n"
     "Are you sure you want to change this driver while a game is loaded?"
-  ).setAlignment(settingsWindow).question() != "Yes") return;
+  ).setAlignment(settingsWindow).question() != "Yes") return false;
   program.inputDriverUpdate();
   inputRefresh();
+  return true;
 }

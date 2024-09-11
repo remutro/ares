@@ -32,11 +32,14 @@ struct V30MZ {
   virtual auto write(n20 address, n8 data) -> void = 0;
   virtual auto in(n16 port) -> n8 = 0;
   virtual auto out(n16 port, n8 data) -> void = 0;
+  virtual auto ioWidth(n16 port) -> u32 = 0;
+  virtual auto ioSpeed(n16 port) -> n32 = 0;
 
   //v30mz.cpp
   auto power() -> void;
 
   //instruction.cpp
+  auto prefixFlush() -> void;
   auto interrupt(u8 vector) -> bool;
   auto nonMaskableInterrupt() -> bool;
   auto instruction() -> void;
@@ -49,7 +52,7 @@ struct V30MZ {
   template<u32> auto setAccumulator(u32) -> void;
 
   //modrm.cpp
-  auto modRM() -> void;
+  auto modRM(bool forceAddress = false) -> void;
 
   auto getSegment() -> u16;
   auto setSegment(u16) -> void;
@@ -240,7 +243,12 @@ struct V30MZ {
   } state;
 
   u8 opcode;
-  queue<u8[7]> prefixes;
+  struct Prefix {
+    u16 count;
+    u8 lock;
+    u8 repeat;
+    u8 segment;
+  } prefix;
 
   struct ModRM {
     u2 mod;
@@ -249,6 +257,8 @@ struct V30MZ {
 
     u16 segment;
     u16 address;
+
+    bool useAddress;
   } modrm;
 
   union { u16 AW; struct { u8 order_lsb2(AL, AH); }; };  //AX

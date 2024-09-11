@@ -30,6 +30,15 @@ Mega32X::Mega32X() {
     device.digital("Start", virtualPorts[id].pad.start);
     port.append(device); }
 
+  { InputDevice device{"Mega Mouse"};
+    device.relative("X",      virtualPorts[id].mouse.x);
+    device.relative("Y",      virtualPorts[id].mouse.y);
+    device.digital ("Left",   virtualPorts[id].mouse.left);
+    device.digital ("Right",  virtualPorts[id].mouse.right);
+    device.digital ("Middle", virtualPorts[id].mouse.middle);
+    device.digital ("Start",  virtualPorts[id].mouse.extra);
+    port.append(device); }
+
     ports.append(port);
   }
 }
@@ -63,6 +72,8 @@ auto Mega32X::load() -> bool {
     system = mia::System::create("Mega 32X");
     if(!system->load()) return false;
   }
+
+  ares::MegaDrive::option("Recompiler", !settings.general.forceInterpreter);
 
   if(!ares::MegaDrive::load(root, {"[Sega] ", name, " (", region, ")"})) return false;
 

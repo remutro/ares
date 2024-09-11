@@ -1,3 +1,10 @@
+auto V30MZ::prefixFlush() -> void {
+  prefix.count = 0;
+  prefix.lock = 0;
+  prefix.repeat = 0;
+  prefix.segment = 0;
+}
+
 auto V30MZ::interrupt(u8 vector, InterruptSource source) -> bool {
   if(source == InterruptSource::INT) wait(32);
   else if (source == InterruptSource::NMI) wait(26);
@@ -5,15 +12,15 @@ auto V30MZ::interrupt(u8 vector, InterruptSource source) -> bool {
 
   state.halt = 0;
   state.poll = 1;
-  state.prefix = 0;
 
   //if an IRQ fires during a rep string instruction;
   //flush prefix queue and seek back to first prefix.
   //this allows the transfer to resume after the IRQ.
-  if(repeat()) {
-    PC -= prefixes.size();
-    prefixes.flush();
+  if(state.prefix) {
+    state.prefix = 0;
+    PC -= prefix.count;
   }
+  prefixFlush();
 
   auto pc = read<Word>(0x0000, vector * 4 + 0);
   auto ps = read<Word>(0x0000, vector * 4 + 2);
@@ -309,7 +316,7 @@ auto V30MZ::instruction() -> void {
   op(0xff, Group4MemImm<Word>)
   }
 
-  if(!state.prefix) prefixes.flush();
+  if(!state.prefix) prefixFlush();
   if(PSW.BRK) interrupt(1, InterruptSource::SingleStep);
 }
 

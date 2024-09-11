@@ -1,14 +1,14 @@
 #include <gba/gba.hpp>
 
-//pixel:      4 cycles
+//pixel:       4 cycles
 
-//hdraw:    240 pixels ( 960 cycles)
-//hblank:    68 pixels ( 272 cycles)
-//scanline: 308 pixels (1232 cycles)
+//hdraw:      46 cycle wait period, then 240 pixels (total: 1006 cycles)
+//hblank:    226 cycles
+//scanline: 1232 cycles
 
-//vdraw:    160 scanlines (197120 cycles)
-//vblank:    68 scanlines ( 83776 cycles)
-//frame:    228 scanlines (280896 cycles)
+//vdraw:     160 scanlines (197120 cycles)
+//vblank:     68 scanlines ( 83776 cycles)
+//frame:     228 scanlines (280896 cycles)
 
 namespace ares::GameBoyAdvance {
 
@@ -35,6 +35,7 @@ auto PPU::load(Node::Object parent) -> void {
   screen->setScale(1.0, 1.0);
   screen->setAspect(1.0, 1.0);
   screen->setViewport(0, 0, 240, 160);
+  screen->refreshRateHint(system.frequency() / 4, 308, 228);
 
   colorEmulation = screen->append<Node::Setting::Boolean>("Color Emulation", true, [&](auto value) {
     screen->resetPalette();
@@ -59,7 +60,7 @@ auto PPU::load(Node::Object parent) -> void {
 }
 
 auto PPU::unload() -> void {
-  debugger = {};
+  debugger.unload(node);
   colorEmulation.reset();
   interframeBlending.reset();
   rotation.reset();
@@ -97,13 +98,15 @@ auto PPU::main() -> void {
   }
 
   if(io.vcounter == 160) {
-    if(io.irqvblank) cpu.irq.flag |= CPU::Interrupt::VBlank;
+    if(io.irqvblank) cpu.setInterruptFlag(CPU::Interrupt::VBlank);
     cpu.dmaVblank();
   }
 
   if(io.irqvcoincidence) {
-    if(io.vcoincidence) cpu.irq.flag |= CPU::Interrupt::VCoincidence;
+    if(io.vcoincidence) cpu.setInterruptFlag(CPU::Interrupt::VCoincidence);
   }
+
+  step(46);
 
   if(io.vcounter < 160) {
     u32 y = io.vcounter;
@@ -132,18 +135,21 @@ auto PPU::main() -> void {
   }
 
   io.hblank = 1;
-  if(io.irqhblank) cpu.irq.flag |= CPU::Interrupt::HBlank;
+  if(io.irqhblank) cpu.setInterruptFlag(CPU::Interrupt::HBlank);
   if(io.vcounter < 160) cpu.dmaHblank();
 
-  step(240);
+  step(226);
   io.hblank = 0;
-  if(io.vcounter < 160) cpu.dmaHDMA();
-
-  step(32);
   if(++io.vcounter == 228) io.vcounter = 0;
+  if(io.vcounter == 162) {
+    if(videoCapture) cpu.dma[3].enable = 0;
+    videoCapture = !videoCapture && cpu.dma[3].timingMode == 3 && cpu.dma[3].enable;
+  }
+  if(io.vcounter >= 2 && io.vcounter < 162 && videoCapture) cpu.dmaHDMA();
 }
 
 auto PPU::frame() -> void {
+  system.controls.poll();
   screen->frame();
   scheduler.exit(Event::Frame);
 }

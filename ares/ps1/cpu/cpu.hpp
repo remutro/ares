@@ -45,7 +45,8 @@ struct CPU : Thread {
   auto synchronize() -> void;
 
   auto instruction() -> void;
-  auto instructionEpilogue() -> s32;
+  auto instructionPrologue(u32 instruction) -> void;
+  template<bool Recompiled> auto instructionEpilogue() -> s32;
   auto instructionHook() -> void;
 
   auto power(bool reset) -> void;
@@ -541,6 +542,8 @@ struct CPU : Thread {
     auto emitSCC(u32 instruction) -> bool;
     auto emitGTE(u32 instruction) -> bool;
 
+    bool enabled = false;
+    bool callInstructionPrologue = false;
     bump_allocator allocator;
     Pool* pools[1 << 21];  //2_MiB * sizeof(void*) = 16_MiB
   } recompiler{*this};

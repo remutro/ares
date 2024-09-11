@@ -21,6 +21,10 @@ auto APU::readIO(n32 address) -> n8 {
   case 0x0400'0068: return square2.read(1);
   case 0x0400'0069: return square2.read(2);
 
+  //zero
+  case 0x0400'006a: return 0x00;
+  case 0x0400'006b: return 0x00;
+
   //NR23, NR24
   case 0x0400'006c: return square2.read(3);
   case 0x0400'006d: return square2.read(4);
@@ -136,7 +140,6 @@ auto APU::readIO(n32 address) -> n8 {
 
   }
 
-  if(cpu.context.dmaActive) return cpu.dmabus.data.byte(address & 3);
   return cpu.pipeline.fetch.instruction.byte(address & 1);
 }
 

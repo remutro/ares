@@ -2,8 +2,8 @@ inline auto CPU::DMA::run() -> bool {
   if(!active || waiting) return false;
 
   transfer();
-  if(irq) cpu.irq.flag |= CPU::Interrupt::DMA0 << id;
-  if(drq && id == 3) cpu.irq.flag |= CPU::Interrupt::Cartridge;
+  if(irq) cpu.setInterruptFlag(CPU::Interrupt::DMA0 << id);
+  if(drq && id == 3) cpu.setInterruptFlag(CPU::Interrupt::Cartridge);
   return true;
 }
 
@@ -12,13 +12,9 @@ auto CPU::DMA::transfer() -> void {
   u32 mode = size ? Word : Half;
   mode |= latch.length() == length() ? Nonsequential : Sequential;
 
-  if(mode & Nonsequential) {
-    if((source() & 0x0800'0000) && (target() & 0x0800'0000)) {
-      //ROM -> ROM transfer
-    } else {
-      cpu.idle();
-      cpu.idle();
-    }
+  if(!cpu.context.dmaRan) {
+    cpu.context.dmaRan = true;
+    cpu.idle();
   }
 
   if(latch.source() < 0x0200'0000) {
@@ -27,8 +23,17 @@ auto CPU::DMA::transfer() -> void {
     n32 addr = latch.source();
     if(mode & Word) addr &= ~3;
     if(mode & Half) addr &= ~1;
-    cpu.dmabus.data = cpu.get(mode, addr);
-    if(mode & Half) cpu.dmabus.data |= cpu.dmabus.data << 16;
+    if(addr & 0x0800'0000) cpu.context.dmaRomAccess = true;
+    latch.data = cpu.get(mode, addr);
+    if(mode & Half) latch.data |= latch.data << 16;
+  }
+
+  if(mode & Nonsequential) {
+    if((source() & 0x0800'0000) && (target() & 0x0800'0000)) {
+      //ROM -> ROM transfer
+      mode |= Sequential;
+      mode ^= Nonsequential;
+    }
   }
 
   if(latch.target() < 0x0200'0000) {
@@ -37,7 +42,8 @@ auto CPU::DMA::transfer() -> void {
     n32 addr = latch.target();
     if(mode & Word) addr &= ~3;
     if(mode & Half) addr &= ~1;
-    cpu.set(mode, addr, cpu.dmabus.data);
+    if(addr & 0x0800'0000) cpu.context.dmaRomAccess = true;
+    cpu.set(mode, addr, latch.data >> (addr & 2) * 8);
   }
 
   switch(sourceMode) {

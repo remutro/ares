@@ -20,6 +20,7 @@ struct ARM7TDMI {
   virtual auto step(u32 clocks) -> void = 0;
   virtual auto sleep() -> void = 0;
   virtual auto get(u32 mode, n32 address) -> n32 = 0;
+  virtual auto getDebugger(u32 mode, n32 address) -> n32 { return get(mode, address); }
   virtual auto set(u32 mode, n32 address, n32 word) -> void = 0;
 
   //arm7tdmi.cpp
@@ -62,7 +63,7 @@ struct ARM7TDMI {
   auto thumbInitialize() -> void;
 
   //instructions-arm.cpp
-  auto armALU(n4 mode, n4 target, n4 source, n32 data) -> void;
+  auto armALU(n4 mode, n4 target, n32 source, n32 data) -> void;
   auto armMoveToStatus(n4 field, n1 source, n32 data) -> void;
 
   auto armInstructionBranch(i24, n1) -> void;

@@ -25,7 +25,7 @@ include(GNUInstallDirs)
 
 
 # lzma
-add_subdirectory(deps/lzma-22.01 EXCLUDE_FROM_ALL)
+add_subdirectory(deps/lzma-24.05 EXCLUDE_FROM_ALL)
   list(APPEND CHDR_LIBS lzma)
   list(APPEND CHDR_INCLUDES lzma)
 
@@ -34,12 +34,17 @@ if (WITH_SYSTEM_ZLIB)
   find_package(ZLIB REQUIRED)
   list(APPEND PLATFORM_LIBS ZLIB::ZLIB)
 else()
-  add_subdirectory(deps/zlib-1.2.13 EXCLUDE_FROM_ALL)
+  option(ZLIB_BUILD_EXAMPLES "Enable Zlib Examples" OFF)
+  add_subdirectory(deps/zlib-1.3.1 EXCLUDE_FROM_ALL)
   set_target_properties(zlibstatic PROPERTIES POSITION_INDEPENDENT_CODE ON)
   list(APPEND CHDR_LIBS zlibstatic)
-  list(APPEND CHDR_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/deps/zlib-1.2.13" "${CMAKE_CURRENT_BINARY_DIR}/deps/zlib-1.2.13")
 endif()
 
+# zstd
+option(ZSTD_BUILD_SHARED "BUILD SHARED LIBRARIES" OFF)
+option(ZSTD_BUILD_PROGRAMS "BUILD PROGRAMS" OFF)
+add_subdirectory(deps/zstd-1.5.6/build/cmake EXCLUDE_FROM_ALL)
+list(APPEND CHDR_LIBS libzstd_static)
 #--------------------------------------------------
 # chdr
 #--------------------------------------------------
@@ -79,6 +84,8 @@ if (BUILD_SHARED_LIBS)
     target_compile_definitions(chdr PRIVATE _CRT_SECURE_NO_WARNINGS)
   elseif(APPLE)
     target_link_libraries(chdr PRIVATE -Wl,-dead_strip -Wl,-exported_symbol,_chd_*)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
+    target_link_libraries(chdr PRIVATE -Wl,--version-script ${CMAKE_CURRENT_SOURCE_DIR}/src/link.T)
   else()
     target_link_libraries(chdr PRIVATE -Wl,--version-script ${CMAKE_CURRENT_SOURCE_DIR}/src/link.T -Wl,--no-undefined)
   endif()

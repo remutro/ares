@@ -39,7 +39,7 @@ struct AudioDriver {
 
 protected:
   Audio& super;
-  friend class Audio;
+  friend struct Audio;
 
   bool exclusive = false;
   uintptr context = 0;
@@ -95,6 +95,9 @@ struct Audio {
   auto setChannels(u32 channels) -> bool;
   auto setFrequency(u32 frequency) -> bool;
   auto setLatency(u32 latency) -> bool;
+
+  auto updateResampleChannels(u32 channels) -> void;
+  auto updateResampleFrequency(u32 frequency) -> void;
 
   auto clear() -> void;
   auto level() -> double;

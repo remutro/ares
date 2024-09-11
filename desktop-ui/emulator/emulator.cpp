@@ -155,17 +155,15 @@ auto Emulator::setBoolean(const string& name, bool value) -> bool {
 
 auto Emulator::setOverscan(bool value) -> bool {
   if(auto screen = root->scan<ares::Node::Video::Screen>("Screen")) {
-    if(auto overscan = screen->find<ares::Node::Setting::Boolean>("Overscan")) {
-      overscan->setValue(value);
-      return true;
-    }
+    screen->setOverscan(value);
+    return true;
   }
   return false;
 }
 
 auto Emulator::setColorBleed(bool value) -> bool {
   if(auto screen = root->scan<ares::Node::Video::Screen>("Screen")) {
-    screen->setColorBleed(value);
+    screen->setColorBleed(screen->height() < 720 ? value : false);  //only apply to sub-HD content
     return true;
   }
 
@@ -190,9 +188,12 @@ auto Emulator::errorFirmware(const Firmware& firmware, string system) -> void {
 
 auto Emulator::input(ares::Node::Input::Input input) -> void {
   //looking up inputs is very time-consuming; skip call if input was called too recently
-  auto thisPoll = chrono::millisecond();
-  if(thisPoll - input->lastPoll < 5) return;
-  input->lastPoll = thisPoll;
+  //note: allow rumble to be polled at full speed to prevent missed motor events
+  if(!input->cast<ares::Node::Input::Rumble>()) {
+    auto thisPoll = chrono::millisecond();
+    if(thisPoll - input->lastPoll < 5) return;
+    input->lastPoll = thisPoll;
+  }
 
   auto device = ares::Node::parent(input);
   if(!device) return;

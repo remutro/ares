@@ -11,6 +11,9 @@ struct Settings : Markup::Node {
     string format;
     bool exclusive = false;
     bool blocking = false;
+    bool forceSRGB = false;
+    bool threadedRenderer = true;
+    bool nativeFullScreen = false;
     bool flush = false;
     string shader = "None";
     u32 multiplier = 2;
@@ -66,6 +69,7 @@ struct Settings : Markup::Node {
     bool runAhead = false;
     bool autoSaveMemory = true;
     bool homebrewMode = false;
+    bool forceInterpreter = false;
   } general;
 
   struct Rewind {
@@ -96,6 +100,14 @@ struct Settings : Markup::Node {
     bool enabled = false; // if enabled, server starts with ares
     bool useIPv4 = false; // forces IPv4 over IPv6
   } debugServer;
+
+  struct Nintendo64 {
+    bool expansionPak = true;
+  } nintendo64;
+
+  struct MegaDrive {
+    bool tmss = false;
+  } megadrive;
 };
 
 struct VideoSettings : VerticalLayout {
@@ -230,18 +242,30 @@ struct EmulatorSettings : VerticalLayout {
 
 struct OptionSettings : VerticalLayout {
   auto construct() -> void;
-  HorizontalLayout rewindLayout{this, Size{~0, 0}, 5};
-    CheckLabel rewind{&rewindLayout, Size{0, 0}, 5};
-    Label rewindHint{&rewindLayout, Size{~0, 0}};
-  HorizontalLayout runAheadLayout{this, Size{~0, 0}, 5};
-    CheckLabel runAhead{&runAheadLayout, Size{0, 0}, 5};
-    Label runAheadHint{&runAheadLayout, Size{~0, 0}};
-  HorizontalLayout autoSaveMemoryLayout{this, Size{~0, 0}, 5};
-    CheckLabel autoSaveMemory{&autoSaveMemoryLayout, Size{0, 0}, 5};
-    Label autoSaveMemoryHint{&autoSaveMemoryLayout, Size{~0, 0}};
-  HorizontalLayout homebrewModeLayout{this, Size{~0, 0}, 5};
-    CheckLabel homebrewMode{&homebrewModeLayout, Size{0, 0}, 5};
-    Label homebrewModeHint{&homebrewModeLayout, Size{~0, 0}};
+  Label commonSettingsLabel{this, Size{~0, 0}, 5};
+    HorizontalLayout rewindLayout{this, Size{~0, 0}, 5};
+      CheckLabel rewind{&rewindLayout, Size{0, 0}, 5};
+      Label rewindHint{&rewindLayout, Size{~0, 0}};
+    HorizontalLayout runAheadLayout{this, Size{~0, 0}, 5};
+      CheckLabel runAhead{&runAheadLayout, Size{0, 0}, 5};
+      Label runAheadHint{&runAheadLayout, Size{~0, 0}};
+    HorizontalLayout autoSaveMemoryLayout{this, Size{~0, 0}, 5};
+      CheckLabel autoSaveMemory{&autoSaveMemoryLayout, Size{0, 0}, 5};
+      Label autoSaveMemoryHint{&autoSaveMemoryLayout, Size{~0, 0}};
+    HorizontalLayout homebrewModeLayout{this, Size{~0, 0}, 5};
+      CheckLabel homebrewMode{&homebrewModeLayout, Size{0, 0}, 5};
+      Label homebrewModeHint{&homebrewModeLayout, Size{~0, 0}};
+    HorizontalLayout forceInterpreterLayout{this, Size{~0, 0}, 5};
+      CheckLabel forceInterpreter{&forceInterpreterLayout, Size{0, 0}, 5};
+      Label forceInterpreterHint{&forceInterpreterLayout, Size{0, 0}};
+  Label nintendo64SettingsLabel{this, Size{~0, 0}, 5};
+    HorizontalLayout nintendo64ExpansionPakLayout{this, Size{~0, 0}, 5};
+      CheckLabel nintendo64ExpansionPakOption{&nintendo64ExpansionPakLayout, Size{0, 0}, 5};
+      Label nintendo64ExpansionPakHint{&nintendo64ExpansionPakLayout, Size{0, 0}};
+  Label megaDriveSettingsLabel{this, Size{~0, 0}, 5};
+    HorizontalLayout megaDriveTmssLayout{this, Size{~0, 0}, 5};
+      CheckLabel megaDriveTmssOption{&megaDriveTmssLayout, Size{0, 0}, 5};
+      Label megaDriveTmssHint{&megaDriveTmssLayout, Size{0, 0}};
 };
 
 struct FirmwareSettings : VerticalLayout {
@@ -304,11 +328,11 @@ struct PathSettings : VerticalLayout {
 struct DriverSettings : VerticalLayout {
   auto construct() -> void;
   auto videoRefresh() -> void;
-  auto videoDriverUpdate() -> void;
+  auto videoDriverUpdate() -> bool;
   auto audioRefresh() -> void;
-  auto audioDriverUpdate() -> void;
+  auto audioDriverUpdate() -> bool;
   auto inputRefresh() -> void;
-  auto inputDriverUpdate() -> void;
+  auto inputDriverUpdate() -> bool;
 
   Label videoLabel{this, Size{~0, 0}, 5};
   HorizontalLayout videoDriverLayout{this, Size{~0, 0}};
@@ -322,9 +346,16 @@ struct DriverSettings : VerticalLayout {
     Label videoFormatLabel{&videoPropertyLayout, Size{0, 0}};
     ComboButton videoFormatList{&videoPropertyLayout, Size{0, 0}};
   HorizontalLayout videoToggleLayout{this, Size{~0, 0}};
+#if !defined(PLATFORM_MACOS)
     CheckLabel videoExclusiveToggle{&videoToggleLayout, Size{0, 0}};
+#endif
     CheckLabel videoBlockingToggle{&videoToggleLayout, Size{0, 0}};
     CheckLabel videoFlushToggle{&videoToggleLayout, Size{0, 0}};
+#if defined(PLATFORM_MACOS)
+    CheckLabel videoColorSpaceToggle{&videoToggleLayout, Size{0, 0}};
+    CheckLabel videoThreadedRendererToggle{&videoToggleLayout, Size{0, 0}};
+    CheckLabel videoNativeFullScreenToggle{&videoToggleLayout, Size{0, 0}};
+#endif
   //
   Label audioLabel{this, Size{~0, 0}, 5};
   HorizontalLayout audioDriverLayout{this, Size{~0, 0}};
@@ -357,6 +388,8 @@ struct DriverSettings : VerticalLayout {
     RadioLabel inputDefocusBlock{&inputDefocusLayout, Size{0, 0}};
     RadioLabel inputDefocusAllow{&inputDefocusLayout, Size{0, 0}};
     Group inputDefocusGroup{&inputDefocusPause, &inputDefocusBlock, &inputDefocusAllow};
+  //
+  Label driverApplyHint{this, Size{0, 35}};
 };
 
 struct DebugSettings : VerticalLayout {

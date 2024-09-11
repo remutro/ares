@@ -1,21 +1,21 @@
 auto V30MZ::instructionSegment(n16 segment) -> void {
-  if(prefixes.full()) prefixes.read(0);
-  prefixes.write(opcode);
+  prefix.segment = opcode;
+  prefix.count++;
   state.prefix = 1;
   state.poll = 0;
 }
 
 auto V30MZ::instructionRepeat() -> void {
-  if(prefixes.full()) prefixes.read(0);
-  prefixes.write(opcode);
+  prefix.repeat = opcode;
+  prefix.count++;
   wait(4);
   state.prefix = 1;
   state.poll = 0;
 }
 
 auto V30MZ::instructionLock() -> void {
-  if(prefixes.full()) prefixes.read(0);
-  prefixes.write(opcode);
+  prefix.lock = opcode;
+  prefix.count++;
   state.prefix = 1;
   state.poll = 0;
 }
@@ -75,8 +75,8 @@ auto V30MZ::instructionTranslate() -> void {
 auto V30MZ::instructionBound() -> void {
   wait(12);
   modRM();
-  auto lo = getMemory<Word>(0);
-  auto hi = getMemory<Word>(2);
-  auto reg = getRegister<Word>();
+  i16 lo = (i16)getMemory<Word>(0);
+  i16 hi = (i16)getMemory<Word>(2);
+  i16 reg = (i16)getRegister<Word>();
   if(reg < lo || reg > hi) interrupt(5, InterruptSource::CPU);
 }

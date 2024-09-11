@@ -1,5 +1,7 @@
 #pragma once
 
+#include <clocale>
+
 namespace nall {
 
 inline auto string::read(string_view filename) -> string {
@@ -159,13 +161,13 @@ template<typename T> inline auto fromReal(char* result, T value) -> u32 {
   char buffer[256];
   #ifdef _WIN32
   //Windows C-runtime does not support long double via sprintf()
-  sprintf(buffer, "%f", (double)value);
+  snprintf(buffer, sizeof(buffer), "%f", (double)value);
   #else
   snprintf(buffer, sizeof(buffer), "%Lf", (long double)value);
   #endif
 
-  //remove excess 0's in fraction (2.500000 -> 2.5)
   for(char* p = buffer; *p; p++) {
+    //remove excess 0's in fraction (2.500000 -> 2.5)
     if(*p == '.') {
       char* p = buffer + strlen(buffer) - 1;
       while(*p == '0') {

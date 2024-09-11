@@ -104,9 +104,10 @@ auto System::power(bool reset) -> void {
   for(auto& setting : node->find<Node::Setting::Setting>()) setting->setLatch();
 
   random.entropy(Random::Entropy::Low);
+  // The apu should run before the cpu
+  apu.power(reset);
   cartridge.power();
   cpu.power(reset);
-  apu.power(reset);
   ppu.power(reset);
   scheduler.power(cpu);
 }

@@ -9,7 +9,7 @@ auto CPU::Recompiler::pool(u32 address) -> Pool* {
   return pool;
 }
 
-auto CPU::Recompiler::block(u32 vaddr, u32 address, bool singleInstruction) -> Block* {
+auto CPU::Recompiler::block(u64 vaddr, u32 address, bool singleInstruction) -> Block* {
   if(auto block = pool(address)->blocks[address >> 2 & 0x3f]) return block;
   auto block = emit(vaddr, address, singleInstruction);
   pool(address)->blocks[address >> 2 & 0x3f] = block;
@@ -17,13 +17,11 @@ auto CPU::Recompiler::block(u32 vaddr, u32 address, bool singleInstruction) -> B
   return block;
 }
 
-auto CPU::Recompiler::fastFetchBlock(u32 address) -> Block* {
-  auto& pool = pools[address >> 8 & 0x1fffff];
-  if(pool) return pool->blocks[address >> 2 & 0x3f];
-  return nullptr;
-}
+#define IpuBase        offsetof(IPU, r[16])
+#define IpuReg(r)      sreg(1), offsetof(IPU, r) - IpuBase
+#define PipelineReg(x) mem(sreg(0), offsetof(CPU, pipeline) + offsetof(Pipeline, x))
 
-auto CPU::Recompiler::emit(u32 vaddr, u32 address, bool singleInstruction) -> Block* {
+auto CPU::Recompiler::emit(u64 vaddr, u32 address, bool singleInstruction) -> Block* {
   if(unlikely(allocator.available() < 1_MiB)) {
     print("CPU allocator flush\n");
     allocator.release();
@@ -35,21 +33,36 @@ auto CPU::Recompiler::emit(u32 vaddr, u32 address, bool singleInstruction) -> Bl
 
   Thread thread;
   bool hasBranched = 0;
+  constexpr u32 branchToSelf = 0x1000'ffff;  //beq 0,0,<pc>
+  u32 jumpToSelf = 2 << 26 | vaddr >> 2 & 0x3ff'ffff;  //j <pc>
   while(true) {
-    u32 instruction = bus.read<Word>(address, thread);
+    u32 instruction = bus.read<Word>(address, thread, "Ares Recompiler");
+    mov32(PipelineReg(nstate), imm(0));
+    mov64(reg(0), PipelineReg(nextpc));
+    mov64(PipelineReg(pc), reg(0));
+    add64(PipelineReg(nextpc), reg(0), imm(4));
+    if(callInstructionPrologue) {
+      mov64(reg(1), imm(vaddr));
+      mov32(reg(2), imm(instruction));
+      call(&CPU::instructionPrologue);
+    }
     bool branched = emitEXECUTE(instruction);
-    if(unlikely(instruction == 0x1000'ffff  //beq 0,0,<pc>
-             || instruction == (2 << 26 | vaddr >> 2 & 0x3ff'ffff))) {  //j <pc>
+    if(unlikely(instruction == branchToSelf || instruction == jumpToSelf)) {
       //accelerate idle loops
       mov32(reg(1), imm(64 * 2));
       call(&CPU::step);
     }
-    call(&CPU::instructionEpilogue);
+    call(&CPU::instructionEpilogue<1>);
+    test32(PipelineReg(state), imm(Pipeline::EndBlock), set_z);
+    mov32(PipelineReg(state), PipelineReg(nstate));
+    mov64(mem(IpuReg(pc)), PipelineReg(pc));
+
     vaddr += 4;
     address += 4;
+    jumpToSelf += 4;
     if(hasBranched || (address & 0xfc) == 0 || singleInstruction) break;  //block boundary
     hasBranched = branched;
-    testJumpEpilog();
+    jumpEpilog(flag_nz);
   }
   jumpEpilog();
 
@@ -68,8 +81,6 @@ auto CPU::Recompiler::emit(u32 vaddr, u32 address, bool singleInstruction) -> Bl
 #define Fsn (instruction >> 11 & 31)
 #define Ftn (instruction >> 16 & 31)
 
-#define IpuBase   offsetof(IPU, r[16])
-#define IpuReg(r) sreg(1), offsetof(IPU, r) - IpuBase
 #define Rd        IpuReg(r[0]) + Rdn * sizeof(r64)
 #define Rt        IpuReg(r[0]) + Rtn * sizeof(r64)
 #define Rt32      IpuReg(r[0].u32) + Rtn * sizeof(r64)
@@ -87,6 +98,10 @@ auto CPU::Recompiler::emit(u32 vaddr, u32 address, bool singleInstruction) -> Bl
 #define i16 s16(instruction)
 #define n16 u16(instruction)
 #define n26 u32(instruction & 0x03ff'ffff)
+
+auto CPU::Recompiler::emitZeroClear(u32 n) -> void {
+  if(n == 0) mov64(mem(IpuReg(r[0])), imm(0));
+}
 
 auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
   switch(instruction >> 26) {
@@ -155,11 +170,13 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::ADDI);
+    emitZeroClear(Rtn);
     return 0;
   }
 
   //ADDIU Rt,Rs,i16
   case 0x09: {
+    if(Rtn == 0) return 0;
     add32(reg(0), mem(Rs32), imm(i16));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rt), reg(0));
@@ -168,6 +185,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
 
   //SLTI Rt,Rs,i16
   case 0x0a: {
+    if(Rtn == 0) return 0;
     cmp64(mem(Rs), imm(i16), set_slt);
     mov64_f(mem(Rt), flag_slt);
     return 0;
@@ -175,6 +193,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
 
   //SLTIU Rt,Rs,i16
   case 0x0b: {
+    if(Rtn == 0) return 0;
     cmp64(mem(Rs), imm(i16), set_ult);
     mov64_f(mem(Rt), flag_ult);
     return 0;
@@ -182,24 +201,28 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
 
   //ANDI Rt,Rs,n16
   case 0x0c: {
+    if(Rtn == 0) return 0;
     and64(mem(Rt), mem(Rs), imm(n16));
     return 0;
   }
 
   //ORI Rt,Rs,n16
   case 0x0d: {
+    if(Rtn == 0) return 0;
     or64(mem(Rt), mem(Rs), imm(n16));
     return 0;
   }
 
   //XORI Rt,Rs,n16
   case 0x0e: {
+    if(Rtn == 0) return 0;
     xor64(mem(Rt), mem(Rs), imm(n16));
     return 0;
   }
 
   //LUI Rt,n16
   case 0x0f: {
+    if(Rtn == 0) return 0;
     mov64(mem(Rt), imm(s32(n16 << 16)));
     return 0;
   }
@@ -265,6 +288,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::DADDI);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -274,6 +298,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::DADDIU);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -283,6 +308,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LDL);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -292,6 +318,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LDR);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -307,6 +334,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LB);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -316,6 +344,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LH);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -325,6 +354,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LWL);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -334,6 +364,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LW);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -343,6 +374,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LBU);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -352,6 +384,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LHU);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -361,6 +394,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LWR);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -370,6 +404,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LWU);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -451,6 +486,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LL);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -481,6 +517,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LLD);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -505,6 +542,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::LD);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -514,6 +552,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::SC);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -544,6 +583,7 @@ auto CPU::Recompiler::emitEXECUTE(u32 instruction) -> bool {
     lea(reg(2), Rs);
     mov32(reg(3), imm(i16));
     call(&CPU::SCD);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -581,6 +621,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SLL Rd,Rt,Sa
   case 0x00: {
+    if(Rdn == 0) return 0;
     shl32(reg(0), mem(Rt32), imm(Sa));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rd), reg(0));
@@ -595,6 +636,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SRL Rd,Rt,Sa
   case 0x02: {
+    if(Rdn == 0) return 0;
     lshr32(reg(0), mem(Rt32), imm(Sa));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rd), reg(0));
@@ -603,6 +645,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SRA Rd,Rt,Sa
   case 0x03: {
+    if(Rdn == 0) return 0;
     ashr64(reg(0), mem(Rt), imm(Sa));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rd), reg(0));
@@ -611,6 +654,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SLLV Rd,Rt,Rs
   case 0x04: {
+    if(Rdn == 0) return 0;
     mshl32(reg(0), mem(Rt32), mem(Rs32));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rd), reg(0));
@@ -625,6 +669,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SRLV Rd,Rt,RS
   case 0x06: {
+    if(Rdn == 0) return 0;
     mlshr32(reg(0), mem(Rt32), mem(Rs32));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rd), reg(0));
@@ -633,6 +678,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SRAV Rd,Rt,Rs
   case 0x07: {
+    if(Rdn == 0) return 0;
     and64(reg(1), mem(Rs), imm(31));
     ashr64(reg(0), mem(Rt), reg(1));
     mov64_s32(reg(0), reg(0));
@@ -652,6 +698,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(1), Rd);
     lea(reg(2), Rs);
     call(&CPU::JALR);
+    emitZeroClear(Rdn);
     return 1;
   }
 
@@ -687,6 +734,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //MFHI Rd
   case 0x10: {
+    if(Rdn == 0) return 0;
     mov64(mem(Rd), mem(Hi));
     return 0;
   }
@@ -699,6 +747,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //MFLO Rd
   case 0x12: {
+    if(Rdn == 0) return 0;
     mov64(mem(Rd), mem(Lo));
     return 0;
   }
@@ -715,6 +764,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     lea(reg(3), Rs);
     call(&CPU::DSLLV);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -730,6 +780,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     lea(reg(3), Rs);
     call(&CPU::DSRLV);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -739,6 +790,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     lea(reg(3), Rs);
     call(&CPU::DSRAV);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -812,11 +864,13 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rs);
     lea(reg(3), Rt);
     call(&CPU::ADD);
+    emitZeroClear(Rdn);
     return 0;
   }
 
   //ADDU Rd,Rs,Rt
   case 0x21: {
+    if(Rdn == 0) return 0;
     add32(reg(0), mem(Rs32), mem(Rt32));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rd), reg(0));
@@ -829,11 +883,13 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rs);
     lea(reg(3), Rt);
     call(&CPU::SUB);
+    emitZeroClear(Rdn);
     return 0;
   }
 
   //SUBU Rd,Rs,Rt
   case 0x23: {
+    if(Rdn == 0) return 0;
     sub32(reg(0), mem(Rs32), mem(Rt32));
     mov64_s32(reg(0), reg(0));
     mov64(mem(Rd), reg(0));
@@ -842,24 +898,28 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //AND Rd,Rs,Rt
   case 0x24: {
+    if(Rdn == 0) return 0;
     and64(mem(Rd), mem(Rs), mem(Rt));
     return 0;
   }
 
   //OR Rd,Rs,Rt
   case 0x25: {
+    if(Rdn == 0) return 0;
     or64(mem(Rd), mem(Rs), mem(Rt));
     return 0;
   }
 
   //XOR Rd,Rs,Rt
   case 0x26: {
+    if(Rdn == 0) return 0;
     xor64(mem(Rd), mem(Rs), mem(Rt));
     return 0;
   }
 
   //NOR Rd,Rs,Rt
   case 0x27: {
+    if(Rdn == 0) return 0;
     or64(reg(0), mem(Rs), mem(Rt));
     xor64(reg(0), reg(0), imm(-1));
     mov64(mem(Rd), reg(0));
@@ -874,6 +934,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SLT Rd,Rs,Rt
   case 0x2a: {
+    if(Rdn == 0) return 0;
     cmp64(mem(Rs), mem(Rt), set_slt);
     mov64_f(mem(Rd), flag_slt);
     return 0;
@@ -881,6 +942,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
 
   //SLTU Rd,Rs,Rt
   case 0x2b: {
+    if(Rdn == 0) return 0;
     cmp64(mem(Rs), mem(Rt), set_ult);
     mov64_f(mem(Rd), flag_ult);
     return 0;
@@ -892,6 +954,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rs);
     lea(reg(3), Rt);
     call(&CPU::DADD);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -901,6 +964,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rs);
     lea(reg(3), Rt);
     call(&CPU::DADDU);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -910,6 +974,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rs);
     lea(reg(3), Rt);
     call(&CPU::DSUB);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -919,6 +984,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rs);
     lea(reg(3), Rt);
     call(&CPU::DSUBU);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -988,6 +1054,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     mov32(reg(3), imm(Sa));
     call(&CPU::DSLL);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -1003,6 +1070,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     mov32(reg(3), imm(Sa));
     call(&CPU::DSRL);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -1012,6 +1080,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     mov32(reg(3), imm(Sa));
     call(&CPU::DSRA);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -1021,6 +1090,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     mov32(reg(3), imm(Sa+32));
     call(&CPU::DSLL);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -1036,6 +1106,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     mov32(reg(3), imm(Sa+32));
     call(&CPU::DSRL);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -1045,6 +1116,7 @@ auto CPU::Recompiler::emitSPECIAL(u32 instruction) -> bool {
     lea(reg(2), Rt);
     mov32(reg(3), imm(Sa+32));
     call(&CPU::DSRA);
+    emitZeroClear(Rdn);
     return 0;
   }
 
@@ -1205,6 +1277,7 @@ auto CPU::Recompiler::emitSCC(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Rdn));
     call(&CPU::MFC0);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -1213,6 +1286,7 @@ auto CPU::Recompiler::emitSCC(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Rdn));
     call(&CPU::DMFC0);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -1291,6 +1365,7 @@ auto CPU::Recompiler::emitFPU(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Fsn));
     call(&CPU::MFC1);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -1299,6 +1374,7 @@ auto CPU::Recompiler::emitFPU(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Fsn));
     call(&CPU::DMFC1);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -1307,6 +1383,7 @@ auto CPU::Recompiler::emitFPU(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Rdn));
     call(&CPU::CFC1);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -2027,6 +2104,7 @@ auto CPU::Recompiler::emitCOP2(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Rdn));
     call(&CPU::MFC2);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -2035,6 +2113,7 @@ auto CPU::Recompiler::emitCOP2(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Rdn));
     call(&CPU::DMFC2);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -2043,6 +2122,7 @@ auto CPU::Recompiler::emitCOP2(u32 instruction) -> bool {
     lea(reg(1), Rt);
     mov32(reg(2), imm(Rdn));
     call(&CPU::CFC2);
+    emitZeroClear(Rtn);
     return 0;
   }
 
@@ -2086,6 +2166,9 @@ auto CPU::Recompiler::emitCOP2(u32 instruction) -> bool {
   return 0;
 }
 
+#undef IpuBase
+#undef IpuReg
+#undef PipelineReg
 #undef Sa
 #undef Rdn
 #undef Rtn
@@ -2093,8 +2176,6 @@ auto CPU::Recompiler::emitCOP2(u32 instruction) -> bool {
 #undef Fdn
 #undef Fsn
 #undef Ftn
-#undef IpuBase
-#undef IpuReg
 #undef Rd
 #undef Rt
 #undef Rt32

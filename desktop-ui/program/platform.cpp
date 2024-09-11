@@ -121,15 +121,19 @@ auto Program::video(ares::Node::Video::Screen node, const u32* data, u32 pitch, 
   }
   ruby::video.unlock();
 
-  static u64 frameCounter = 0, previous, current;
-  frameCounter++;
+  static u64 vblankCounter = 0, previous, current;
+  vblankCounter++;
 
   current = chrono::timestamp();
   if(current != previous) {
     previous = current;
-    framesPerSecond = frameCounter;
-    frameCounter = 0;
+    vblanksPerSecond = vblankCounter;
+    vblankCounter = 0;
   }
+}
+
+auto Program::refreshRateHint(double refreshRate) -> void {
+  ruby::video.refreshRateHint(refreshRate);
 }
 
 auto Program::audio(ares::Node::Audio::Stream node) -> void {
@@ -183,4 +187,8 @@ auto Program::input(ares::Node::Input::Input node) -> void {
   }
 
   emulator->input(node);
+}
+
+auto Program::cheat(u32 address) -> maybe<u32> {
+  return cheatEditor.find(address);
 }

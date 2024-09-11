@@ -3,9 +3,11 @@ build := optimized
 threaded := true
 openmp := false
 vulkan := true
+sdl2 := true
 local := true
 lto := true
-flags += -I. -I.. -I../ares -I../thirdparty -DMIA_LIBRARY
+librashader	:= true
+flags += -I. -I.. -I../ares -I../thirdparty -I../thirdparty/librashader/include -DMIA_LIBRARY
 
 nall.path := ../nall
 include $(nall.path)/GNUmakefile
@@ -21,6 +23,10 @@ ifneq ($(filter $(arch),x86 amd64),)
   endif
 endif
 
+ifeq ($(platform),macos)
+  ares.dylibs :=
+endif
+
 libco.path := ../libco
 include $(libco.path)/GNUmakefile
 
@@ -30,6 +36,16 @@ libchdr.path := $(thirdparty.path)/libchdr
 tzxfile.path := $(thirdparty.path)/TZXFile
 ymfm.path := $(thirdparty.path)/ymfm
 include $(thirdparty.path)/GNUmakefile
+
+ifeq ($(platform),macos)
+	librashader.path := $(thirdparty.path)/librashader/target/optimized/librashader.dylib
+else ifeq ($(platform), windows)
+  ifneq ($(wildcard $(thirdparty.path)/librashader/target/aarch64-pc-windows-msvc/optimized/librashader.dll),)
+	librashader.path := $(thirdparty.path)/librashader/target/aarch64-pc-windows-msvc/optimized/librashader.dll
+  else
+	librashader.path := $(thirdparty.path)/librashader/target/optimized/librashader.dll
+  endif
+endif
 
 ruby.path := ../ruby
 include $(ruby.path)/GNUmakefile
@@ -69,12 +85,30 @@ $(object.path)/desktop-ui-presentation.o: $(desktop-ui.path)/presentation/presen
 $(object.path)/desktop-ui-settings.o: $(desktop-ui.path)/settings/settings.cpp
 $(object.path)/desktop-ui-tools.o: $(desktop-ui.path)/tools/tools.cpp
 
-all.objects := $(libco.objects) $(sljit.objects) $(libchdr.objects) $(tzxfile.objects) $(ymfm.objects) $(nall.objects) $(ruby.objects) $(hiro.objects) $(ares.objects) $(mia.objects) $(desktop-ui.objects)
-all.options := $(libco.options) $(sljit.options) $(libchdr.options) $(tzxfile.options) $(ymfm.options) $(nall.options) $(ruby.options) $(hiro.options) $(ares.options) $(mia.options) $(desktop-ui.options) $(options)
+all.objects :=            $(libco.objects) $(sljit.objects) $(libchdr.objects) $(tzxfile.objects) $(ymfm.objects) $(nall.objects) $(ruby.objects) $(hiro.objects) $(ares.objects) $(mia.objects) $(desktop-ui.objects)
+all.options := $(options) $(libco.options) $(sljit.options) $(libchdr.options) $(tzxfile.options) $(ymfm.options) $(nall.options) $(ruby.options) $(hiro.options) $(ares.options) $(mia.options) $(desktop-ui.options)
 
 $(all.objects): | $(object.path)
 
-all: $(all.objects) | $(output.path)
+all: output
+ifneq ($(MAKECMDGOALS),clean)
+   ifeq ($(platform),macos)
+      ifeq ($(librashader), true)
+        ifeq ($(wildcard $(librashader.path)),)
+    	  $(error Tried to compile ares for macOS with librashader enabled, but no librashader library was found. Compile it with thirdparty/librashader/build-librashader.sh, or disable librashader by compiling ares with librashader=false)
+        endif
+    	ares.dylibs += $(librashader.path)
+      endif
+   else ifeq ($(platform), windows)
+      ifeq ($(librashader), true)
+        ifeq ($(wildcard $(librashader.path)),)
+          $(error Tried to compile ares for Windows with librashader enabled, but no librashader library was found. Compile it with thirdparty/librashader/build-librashader.sh, or disable librashader by compiling ares with librashader=false)
+        endif
+      endif
+   endif
+endif
+
+output: $(all.objects) | $(output.path)
 	$(info Linking $(output.path)/$(name)$(extension) ...)
 	+@$(compiler) $(call exe,$(output.path)/$(name)$(extension)) $(all.objects) $(all.options)
 	$(call copy,../LICENSE,$(output.path)/LICENSE.txt)
@@ -93,15 +127,27 @@ ifneq ($(ares.dylibs),)
 endif
 	mv $(output.path)/$(name) $(output.path)/$(name).app/Contents/MacOS/$(name)
 	cp resource/$(name).plist $(output.path)/$(name).app/Contents/Info.plist
-	cp -R $(ares.path)/Shaders $(output.path)/$(name).app/Contents/Resources/
-	cp -R $(mia.path)/Database $(output.path)/$(name).app/Contents/Resources/	
+	$(call mkdir,$(output.path)/$(name).app/Contents/Resources/Shaders/)
+	$(call mkdir,$(output.path)/$(name).app/Contents/Resources/Database/)
+ifeq ($(build),debug)
+# Try to copy the debug .metallib into the .app bundle; if we don't succeed, user will see runtime log message
+	-cp ../ruby/video/metal/shaders.metallib $(output.path)/$(name).app/Contents/Resources/Shaders/shaders.metallib
+endif
+	cp ../ruby/video/metal/Shaders.metal $(output.path)/$(name).app/Contents/Resources/Shaders/Shaders.metal
+	$(call rcopy,$(thirdparty.path)/slang-shaders/*,$(output.path)/$(name).app/Contents/Resources/Shaders/)
+	$(call rcopy,$(mia.path)/Database/*,$(output.path)/$(name).app/Contents/Resources/Database/)
 	sips -s format icns resource/$(name).png --out $(output.path)/$(name).app/Contents/Resources/$(name).icns
 	codesign --force --deep --options runtime --entitlements resource/$(name).selfsigned.entitlements --sign - $(output.path)/$(name).app
-else ifeq ($(platform),windows)
+else ifneq ($(filter $(platform),windows linux bsd),)
 	$(call mkdir,$(output.path)/Shaders/)
 	$(call mkdir,$(output.path)/Database/)
-	$(call rcopy,$(ares.path)/Shaders/*,$(output.path)/Shaders/)
+	$(call rcopy,$(thirdparty.path)/slang-shaders/*,$(output.path)/Shaders/)
 	$(call rcopy,$(mia.path)/Database/*,$(output.path)/Database/)
+ifeq ($(librashader), true)
+ifdef librashader.path
+	$(call copy,$(librashader.path),$(output.path)/)
+endif
+endif
 endif
 
 verbose: nall.verbose ruby.verbose hiro.verbose all;
@@ -128,7 +174,7 @@ else ifneq ($(filter $(platform),linux bsd),)
 	mkdir -p $(prefix)/share/$(name)/Shaders/
 	mkdir -p $(prefix)/share/$(name)/Database/
 	cp $(output.path)/$(name) $(prefix)/bin/$(name)
-	cp -R $(ares.path)/Shaders/* $(prefix)/share/$(name)/Shaders/
+	cp -R $(thirdparty.path)/slang-shaders/* $(prefix)/share/$(name)/Shaders/
 	cp -R $(mia.path)/Database/* $(prefix)/share/$(name)/Database/
 	cp resource/$(name).desktop $(prefix)/share/applications/$(name).desktop
 	cp resource/$(name).png $(prefix)/share/icons/hicolor/256x256/apps/$(name).png

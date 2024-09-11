@@ -2,11 +2,12 @@ struct Nintendo64DD : Emulator {
   Nintendo64DD();
   auto load() -> bool override;
   auto load(Menu) -> void override;
+  auto unload() -> void override;
   auto save() -> bool override;
   auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
 
   u32 regionID = 0;
-  Timer diskInsertTimer;
+  sTimer diskInsertTimer;
 };
 
 Nintendo64DD::Nintendo64DD() {
@@ -78,6 +79,8 @@ auto Nintendo64DD::load() -> bool {
   ares::Nintendo64::option("Disable Video Interface Processing", settings.video.disableVideoInterfaceProcessing);
   ares::Nintendo64::option("Weave Deinterlacing", settings.video.weaveDeinterlacing);
   ares::Nintendo64::option("Homebrew Mode", settings.general.homebrewMode);
+  ares::Nintendo64::option("Recompiler", !settings.general.forceInterpreter);
+  ares::Nintendo64::option("Expansion Pak", settings.nintendo64.expansionPak);
 
   if(!ares::Nintendo64::load(root, {"[Nintendo] Nintendo 64DD (", region, ")"})) return false;
 
@@ -106,6 +109,7 @@ auto Nintendo64DD::load() -> bool {
     }
   }
 
+  diskInsertTimer = Timer{};
 
   return true;
 }
@@ -123,13 +127,20 @@ auto Nintendo64DD::load(Menu menu) -> void {
     }
 
     //give the emulator core a few seconds to notice an empty drive state before reconnecting
-    diskInsertTimer.onActivate([&] {
-      diskInsertTimer.setEnabled(false);
+    diskInsertTimer->onActivate([&] {
+      diskInsertTimer->setEnabled(false);
       auto drive = root->find<ares::Node::Port>("Nintendo 64DD/Disk Drive");
       drive->allocate();
       drive->connect();
     }).setInterval(3000).setEnabled();
   });
+}
+
+auto Nintendo64DD::unload() -> void {
+  gamepad.reset();
+
+  Emulator::unload();
+  diskInsertTimer.reset();
 }
 
 auto Nintendo64DD::save() -> bool {

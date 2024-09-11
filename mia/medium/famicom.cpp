@@ -1,6 +1,6 @@
 struct Famicom : Cartridge {
   auto name() -> string override { return "Famicom"; }
-  auto extensions() -> vector<string> override { return {"fc", "nes", "unf", "unif"}; }
+  auto extensions() -> vector<string> override { return {"fc", "nes", "unf", "unif", "unh"}; }
   auto load(string location) -> bool override;
   auto save(string location) -> bool override;
   auto analyze(vector<u8>& data) -> string;
@@ -250,9 +250,18 @@ auto Famicom::analyzeINES(vector<u8>& data) -> string {
     break;
 
   case   4:
-    s += "  board:  HVC-TLROM\n";
-    s += "    chip type=MMC3B\n";
-    if(!iNes2) prgram = 8192;
+    if (submapper == 1) {
+      s += "  board:  HVC-HKROM\n";
+      s += "    chip type=MMC6\n";
+      prgram = 1024;
+    } else if (submapper == 3) {
+      s += "  board:  MC-ACC\n";
+      s += "    chip type=ACCLAIM-MC-ACC\n";
+    } else {
+      s += "  board:  HVC-TLROM\n";
+      s += "    chip type=MMC3B\n";
+      if(!iNes2) prgram = 8192;
+    }
     break;
 
   case   5:
@@ -437,6 +446,11 @@ auto Famicom::analyzeINES(vector<u8>& data) -> string {
     s += "    chip type=TC0690\n";
     break;
 
+  case  64:
+    s += "  board:  TENGEN-800032\n";
+    s += "    chip type=RAMBO-1\n";
+    break;
+
   case  65:
     s += "  board:  IREM-H3001\n";
     s += "    chip type=H3001\n";
@@ -465,6 +479,15 @@ auto Famicom::analyzeINES(vector<u8>& data) -> string {
   case  70:
     s += "  board:  BANDAI-74161\n";
     s +={"    mirror mode=", !mirror ? "horizontal" : "vertical", "\n"};
+    break;
+
+  case  71:
+    if(submapper == 1) {
+      s += "  board:  CAMERICA-BF9097\n";
+    } else {
+      s += "  board:  CAMERICA-BF9093\n";
+      s +={"    mirror mode=", !mirror ? "horizontal" : "vertical", "\n"};
+    }
     break;
 
   case  72:
@@ -592,9 +615,22 @@ auto Famicom::analyzeINES(vector<u8>& data) -> string {
     if(!iNes2) chrram = 8192;
     break;
 
+  case  132:
+    s += "  board:  TXC-22211A\n";
+    break;
+
   case  140:
     s += "  board:  JALECO-JF-11\n";
     s +={"    mirror mode=", !mirror ? "horizontal" : "vertical", "\n"};
+    break;
+
+  case 148:
+    s += "  board:  UNL-SA-0037\n";
+    s +={"    mirror mode=", !mirror ? "horizontal" : "vertical", "\n"};
+    break;
+
+  case 150:
+    s += "  board:  UNL-Sachen-74LS374N\n";
     break;
 
   case 152:
@@ -627,11 +663,24 @@ auto Famicom::analyzeINES(vector<u8>& data) -> string {
     eepromMapper = true;
     break;
 
+  case 158:
+    s += "  board:  TENGEN-800037\n";
+    s += "    chip type=RAMBO-1\n";
+    break;
+
   case 159:
     s += "  board:  BANDAI-LZ93D50\n";
     s += "    chip type=LZ93D50\n";
     if(!iNes2) prgnvram = 128;
     eepromMapper = true;
+    break;
+
+  case 172:
+    s += "  board:  TXC-22211B\n";
+    break;
+
+  case 173:
+    s += "  board:  TXC-22211C\n";
     break;
 
   case 180:
@@ -679,6 +728,28 @@ auto Famicom::analyzeINES(vector<u8>& data) -> string {
   case 228:
     s += "  board:  MLT-ACTION52\n";
     break;
+
+  case 225:
+  case 255:
+    s += "  board:  UNL-BMC-128\n";
+    break;
+
+  case 229:
+    s += "  board:  UNL-BMC-32\n";
+    break;
+
+  case 232:
+    if(submapper == 1) {
+      s += "  board:  CAMERICA-BF9096A\n";
+      s +={"    mirror mode=", !mirror ? "horizontal" : "vertical", "\n"};
+    } else {
+      s += "  board:  CAMERICA-BF9096\n";
+      s +={"    mirror mode=", !mirror ? "horizontal" : "vertical", "\n"};
+    }
+    break;
+
+  case 243:
+    s += "  board:  UNL-Sachen-74LS374NA\n";
   }
 
   u32 eeprom = 0u;
@@ -739,7 +810,7 @@ auto Famicom::analyzeINES(vector<u8>& data) -> string {
 
 auto Famicom::analyzeUNIF(vector<u8>& data) -> string {
   string board;
-  string region = "NTSC";  //fallback
+  string region = "NTSC-J, NTSC-U";  //fallback
   bool battery = false;
   string mirroring;
   vector<u8> programROMs[8];
@@ -768,9 +839,9 @@ auto Famicom::analyzeUNIF(vector<u8>& data) -> string {
 
     if(type == "TVCI" && size > 0) {
       u8 byte = data[offset + 8];
-      if(byte == 0x00) region = "NTSC";
+      if(byte == 0x00) region = "NTSC-J, NTSC-U";
       if(byte == 0x01) region = "PAL";
-      if(byte == 0x02) region = "NTSC, PAL";
+      if(byte == 0x02) region = "NTSC-J, NTSC-U, PAL";
     }
 
     if(type == "BATR" && size > 0) {

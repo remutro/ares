@@ -22,6 +22,7 @@ namespace Math {
 #include <atomic>
 #include <limits>
 #include <mutex>
+#include <condition_variable>
 #include <utility>
 
 #include <assert.h>
@@ -66,10 +67,6 @@ namespace Math {
   #define dllexport __declspec(dllexport)
   #define MSG_NOSIGNAL 0
   #define PATH_MAX 260
-
-  #if !defined(INVALID_HANDLE_VALUE)
-    #define INVALID_HANDLE_VALUE ((HANDLE)-1)
-  #endif
 
   typedef void* HANDLE;
 

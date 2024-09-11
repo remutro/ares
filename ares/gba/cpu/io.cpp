@@ -81,10 +81,10 @@ auto CPU::readIO(n32 address) -> n8 {
       result.bit(7) = !system.controls.downLatch;
     }
     if(ppu.rotation->value() == "90°") {
-      result.bit(4) = !system.controls.downLatch;
-      result.bit(5) = !system.controls.upLatch;
-      result.bit(6) = !system.controls.rightLatch;
-      result.bit(7) = !system.controls.leftLatch;
+      result.bit(4) = !system.controls.upLatch;
+      result.bit(5) = !system.controls.downLatch;
+      result.bit(6) = !system.controls.leftLatch;
+      result.bit(7) = !system.controls.rightLatch;
     }
     if(ppu.rotation->value() == "180°") {
       result.bit(4) = !system.controls.leftLatch;
@@ -93,10 +93,10 @@ auto CPU::readIO(n32 address) -> n8 {
       result.bit(7) = !system.controls.upLatch;
     }
     if(ppu.rotation->value() == "270°") {
-      result.bit(4) = !system.controls.upLatch;
-      result.bit(5) = !system.controls.downLatch;
-      result.bit(6) = !system.controls.leftLatch;
-      result.bit(7) = !system.controls.rightLatch;
+      result.bit(4) = !system.controls.downLatch;
+      result.bit(5) = !system.controls.upLatch;
+      result.bit(6) = !system.controls.rightLatch;
+      result.bit(7) = !system.controls.leftLatch;
     }
     return result;
   }
@@ -144,6 +144,10 @@ auto CPU::readIO(n32 address) -> n8 {
     joybus.siIRQEnable << 0
   | joybus.mode        << 6
   );
+  
+  //zero
+  case 0x0400'0136: return 0;
+  case 0x0400'0137: return 0;
 
   //JOYCNT
   case 0x0400'0140: return (
@@ -179,12 +183,12 @@ auto CPU::readIO(n32 address) -> n8 {
   case 0x0400'015b: return 0;
 
   //IE
-  case 0x0400'0200: return irq.enable.byte(0);
-  case 0x0400'0201: return irq.enable.byte(1);
+  case 0x0400'0200: return irq.enable[0].byte(0);
+  case 0x0400'0201: return irq.enable[0].byte(1);
 
   //IF
-  case 0x0400'0202: return irq.flag.byte(0);
-  case 0x0400'0203: return irq.flag.byte(1);
+  case 0x0400'0202: return irq.flag[0].byte(0);
+  case 0x0400'0203: return irq.flag[0].byte(1);
 
   //WAITCNT
   case 0x0400'0204: return (
@@ -201,14 +205,26 @@ auto CPU::readIO(n32 address) -> n8 {
   | wait.prefetch << 6
   | wait.gameType << 7
   );
+  
+  //zero
+  case 0x0400'0206: return 0;
+  case 0x0400'0207: return 0;
 
   //IME
   case 0x0400'0208: return irq.ime;
   case 0x0400'0209: return 0;
+  
+  //zero
+  case 0x0400'020a: return 0;
+  case 0x0400'020b: return 0;
 
   //POSTFLG + HALTCNT
   case 0x0400'0300: return context.booted;
   case 0x0400'0301: return 0;
+  
+  //zero
+  case 0x0400'0302: return 0;
+  case 0x0400'0303: return 0;
 
   //MEMCNT_L
   case 0x0400'0800: return (
@@ -227,7 +243,6 @@ auto CPU::readIO(n32 address) -> n8 {
 
   }
 
-  if(cpu.context.dmaActive) return cpu.dmabus.data.byte(address & 3);
   return cpu.pipeline.fetch.instruction.byte(address & 1);
 }
 
@@ -285,23 +300,23 @@ auto CPU::writeIO(n32 address, n8 data) -> void {
   }
 
   //TM0CNT_L, TM1CNT_L, TM2CNT_L, TM3CNT_L
-  case 0x0400'0100: case 0x0400'0104: case 0x0400'0108: case 0x0400'010c: timer().reload.byte(0) = data; return;
-  case 0x0400'0101: case 0x0400'0105: case 0x0400'0109: case 0x0400'010d: timer().reload.byte(1) = data; return;
+  case 0x0400'0100: case 0x0400'0104: case 0x0400'0108: case 0x0400'010c:
+    timer().latch.reload.byte(0) = data;
+    timer().latch.reloadFlags.bit(0) = 1;
+    context.timerLatched = 1;
+    return;
+  case 0x0400'0101: case 0x0400'0105: case 0x0400'0109: case 0x0400'010d:
+    timer().latch.reload.byte(1) = data;
+    timer().latch.reloadFlags.bit(1) = 1;
+    context.timerLatched = 1;
+    return;
 
   //TM0CNT_H, TM1CNT_H, TM2CNT_H, TM3CNT_H
-  case 0x0400'0102: case 0x0400'0106: case 0x0400'010a: case 0x0400'010e: {
-    bool enable = timer().enable;
-
-    timer().frequency = data.bit(0,1);
-    timer().cascade   = data.bit(2);
-    timer().irq       = data.bit(6);
-    timer().enable    = data.bit(7);
-
-    if(!enable && timer().enable) {  //0->1 transition
-      timer().pending = true;
-    }
+  case 0x0400'0102: case 0x0400'0106: case 0x0400'010a: case 0x0400'010e:
+    timer().latch.control = data;
+    timer().latch.controlFlag = 1;
+    context.timerLatched = 1;
     return;
-  }
   case 0x0400'0103: case 0x0400'0107: case 0x0400'010b: case 0x0400'010f:
     return;
 
@@ -400,12 +415,12 @@ auto CPU::writeIO(n32 address, n8 data) -> void {
   case 0x0400'0159: return;
 
   //IE
-  case 0x0400'0200: irq.enable.byte(0) = data; return;
-  case 0x0400'0201: irq.enable.byte(1) = data; return;
+  case 0x0400'0200: irq.enable[1].byte(0) = data; return;
+  case 0x0400'0201: irq.enable[1].byte(1) = data; return;
 
   //IF
-  case 0x0400'0202: irq.flag.byte(0) = irq.flag.byte(0) & ~data; return;
-  case 0x0400'0203: irq.flag.byte(1) = irq.flag.byte(1) & ~data; return;
+  case 0x0400'0202: irq.flag[1].byte(0) = irq.flag[1].byte(0) & ~data; return;
+  case 0x0400'0203: irq.flag[1].byte(1) = irq.flag[1].byte(1) & ~data; return;
 
   //WAITCNT
   case 0x0400'0204:

@@ -25,11 +25,15 @@ Screen::~Screen() {
 
 auto Screen::main(uintptr_t) -> void {
   while(!_kill) {
-    usleep(1);
-    if(_frame) {
+    unique_lock<mutex> lock(_frameMutex);
+
+    auto timeout = std::chrono::milliseconds(10);
+    if(_frameCondition.wait_for(lock, timeout, [&] { return _frame.load(); })) {
       refresh();
       _frame = false;
     }
+
+    if(_kill) break;
   }
 }
 
@@ -68,12 +72,26 @@ auto Screen::setRefresh(function<void ()> refresh) -> void {
   _refresh = refresh;
 }
 
+auto Screen::refreshRateHint(double pixelFrequency, int dotsPerLine, int linesPerFrame) -> void {
+  refreshRateHint(1.0f / ((double)(dotsPerLine * linesPerFrame) / pixelFrequency));
+}
+
+auto Screen::refreshRateHint(double refreshRate) -> void {
+  lock_guard<recursive_mutex> lock(_mutex);
+  platform->refreshRateHint(refreshRate);
+}
+
 auto Screen::setViewport(u32 x, u32 y, u32 width, u32 height) -> void {
   lock_guard<recursive_mutex> lock(_mutex);
   _viewportX = x;
   _viewportY = y;
   _viewportWidth  = width;
   _viewportHeight = height;
+}
+
+auto Screen::setOverscan(bool overscan) -> void {
+  lock_guard<recursive_mutex> lock(_mutex);
+  _overscan = overscan;
 }
 
 auto Screen::setSize(u32 width, u32 height) -> void {
@@ -176,10 +194,12 @@ auto Screen::frame() -> void {
 
   lock_guard<recursive_mutex> lock(_mutex);
   _inputA.swap(_inputB);
-  _frame = true;
   if constexpr(!ares::Video::Threaded) {
     refresh();
     _frame = false;
+  } else {
+    _frame = true;
+    _frameCondition.notify_one();
   }
 }
 

@@ -88,10 +88,21 @@ endif
 ifneq ($(filter cl clang-cl,$(compiler)),)
   cl := true
   msvc := true
-  machine := amd64
+endif
+
+ifneq ($(filter cl,$(compiler)),)
+  machine_str := $(shell $(compiler) 2>&1 1>NUL)
+  ifneq ($(filter x86,$(machine_str)),)
+    machine := x86
+  else ifneq ($(filter x64,$(machine_str)),)
+    machine := amd64
+  else ifneq ($(filter ARM64,$(machine_str)),)
+    machine := arm64
+  endif
 else
-  machine_str := $(shell $(compiler) -dumpmachine)
-  ifneq ($(filter i686-%,$(machine_str)),)
+  machine_opt := $(if $(findstring clang,$(compiler)),-print-target-triple,-dumpmachine)
+  machine_str := $(shell $(compiler) $(machine_opt))
+  ifneq ($(filter i386-% i486-% i586-% i686-%,$(machine_str)),)
     machine := x86
   else ifneq ($(filter amd64-% x86_64-%,$(machine_str)),)
     machine := amd64
@@ -117,15 +128,25 @@ endif
 
 # global compiler flags
 ifeq ($(cl),true)
-  flags.c      = -nologo -W0 -Fd$(object.path)/ -TC -std:c11
-  flags.cpp    = -nologo -W0 -Fd$(object.path)/ -TP -std:c++17 -EHsc
-  options      = -nologo $(if $(findstring clang,$(compiler)),-fuse-ld=lld) -link
+  flags.c      = -TC -std:c11
+  flags.cpp    = -TP -std:c++17 -EHsc
+  flags       += -nologo -permissive- -utf-8 -W2 -Fd$(object.path)/
+  options     += -nologo $(if $(findstring clang,$(compiler)),-fuse-ld=lld) -link
 else
   flags.c      = -x c -std=c11
   flags.cpp    = -x c++ -std=c++17
   flags.objc   = -x objective-c -std=c11
   flags.objcpp = -x objective-c++ -std=c++17
   flags.deps   = -MMD -MP -MF $(@:.o=.d)
+endif
+
+# architecture detection
+ifeq ($(arch),)
+  ifneq ($(machine),)
+    arch := $(machine)
+  else
+    $(error unknown arch, please specify manually.)
+  endif
 endif
 
 # explicit architecture flags to allow for cross-compilation on macos
@@ -142,18 +163,10 @@ ifeq ($(platform),macos)
   endif
 endif
 
-# architecture detection
-ifeq ($(arch),)
-  ifneq ($(machine),)
-    arch := $(machine)
-  else
-    $(error unknown arch, please specify manually.)
-  endif
-endif
-
 # build optimization levels
 ifeq ($(build),debug)
   symbols = true
+  lto = false
   ifeq ($(cl),true)
     flags += -Od
   else
@@ -170,7 +183,7 @@ else ifeq ($(build),optimized)
   ifeq ($(cl),true)
     flags += -O2
   else
-    flags += -O3 -fomit-frame-pointer
+    flags += -O3
   endif
   flags += -DBUILD_OPTIMIZED
 else
@@ -263,8 +276,15 @@ ifeq ($(platform),windows)
   ifeq ($(msvc),true)
     flags += -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_WARNINGS
   endif
-  options += $(call lib,ws2_32 ole32 shell32 shlwapi)
-  options += $(if $(findstring g++,$(compiler)),-mthreads -static)
+  options += $(call lib,ws2_32 ole32 shell32 shlwapi advapi32)
+  options += $(if $(findstring g++,$(compiler)),-mthreads)
+  ifeq ($(cl),true)
+    flags += $(if $(filter-out true,$(static)),-MD,-MT)
+  else ifeq ($(msvc),true)
+    flags += -fms-runtime-lib=$(if $(filter-out true,$(static)),dll,static)
+  else
+    options += $(if $(filter-out true,$(static)),,-static)
+  endif
   ifeq ($(console),true)
     flags += -DSUBSYTEM_CONSOLE
     options += $(if $(findstring g++,$(compiler)),-mconsole)
@@ -279,11 +299,18 @@ ifeq ($(platform),windows)
       windres := windres
     endif
   endif
+  ifneq ($(filter cl,$(compiler)),)
+    ifeq ($(arch),arm64)
+      # work around optimizer bug in MSVC 19.39+
+      # https://developercommunity.microsoft.com/t/ARM64-code-generation-regression/10686742#T-N10699503
+      flags += -d2lowered-bit-liveness-
+    endif
+  endif
 endif
 
 # macos settings
 ifeq ($(platform),macos)
-  flags   += -stdlib=libc++ -mmacosx-version-min=10.9 -Wno-auto-var-id -fobjc-arc
+  flags   += -mmacosx-version-min=10.9 -Wno-auto-var-id -Wno-deprecated-declarations -fobjc-arc
   options += -lc++ -lobjc -mmacosx-version-min=10.9
   # allow mprotect() on dynamic recompiler code blocks
   options += -Wl,-segprot,__DATA,rwx,rw
@@ -298,7 +325,6 @@ endif
 ifeq ($(platform),bsd)
   flags   += -I/usr/local/include
   options += -Wl,-rpath=/usr/local/lib
-  options += -Wl,-rpath=/usr/local/lib/gcc8
   options += -lstdc++ -lm
 endif
 
@@ -307,6 +333,22 @@ ifeq ($(threaded),true)
   ifneq ($(filter $(platform),linux bsd),)
     flags   += -pthread
     options += -pthread -lrt
+  endif
+endif
+
+# pkg-config/pkgconf detection
+PKG_CONFIG ?= pkg-config
+ifeq ($(shell echo ^^),^)
+  PKG_CONFIG_VERSION := $(shell $(PKG_CONFIG) --version 2> NUL)
+else
+  PKG_CONFIG_VERSION := $(shell $(PKG_CONFIG) --version 2> /dev/null)
+endif
+
+pkg_config :=
+ifneq ($(PKG_CONFIG_VERSION),)
+  pkg_config := $(PKG_CONFIG)
+  ifeq ($(cl),true)
+    pkg_config += --msvc-syntax
   endif
 endif
 
@@ -332,6 +374,7 @@ nall.verbose:
 
 %.o: $<
 	$(info Compiling $(subst ../,,$<) ...)
+	$(call mkdir,$(dir $@))
 	@$(call compile)
 
 $(object.path):
@@ -428,6 +471,7 @@ ifeq ($(platform),windows)
   prefix := $(subst $([space]),\$([space]),$(strip $(call strtr,$(LOCALAPPDATA),\,/)))
 else
   prefix := $(HOME)/.local
+  flags += -DARES_PREFIX="$(prefix)"
 endif
 
 # objects

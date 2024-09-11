@@ -23,7 +23,7 @@ struct M32X {
 
       //debugger.cpp
       auto load(Node::Object) -> void;
-      auto instruction() -> void;
+      auto instruction(u16 opcode) -> void;
       auto interrupt(string_view) -> void;
 
       struct Tracer {
@@ -37,10 +37,12 @@ struct M32X {
     auto unload() -> void;
 
     auto main() -> void;
+    auto instructionPrologue(u16 instruction) -> void override;
     auto step(u32 clocks) -> void override;
     auto power(bool reset) -> void;
     auto restart() -> void;
     auto syncOtherSh2() -> void;
+    auto syncM68k() -> void;
 
     auto busReadByte(u32 address) -> u32 override;
     auto busReadWord(u32 address) -> u32 override;
@@ -65,9 +67,11 @@ struct M32X {
     } irq;
 
     s32 cyclesUntilSh2Sync = 0;
+    s32 cyclesUntilM68kSync = 0;
     s32 cyclesUntilFullSync = 0;
-    s32 minCyclesBetweenFullSyncs = 0;
     s32 minCyclesBetweenSh2Syncs = 0;
+    s32 minCyclesBetweenM68kSyncs = 0;
+    s32 minCyclesBetweenFullSyncs = 0;
   };
 
   struct VDP {

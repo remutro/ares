@@ -1,6 +1,7 @@
 struct MROM {
   //mrom.cpp
   auto read(u32 mode, n32 address) -> n32;
+  auto readBus(u32 mode, n32 address) -> n16;
   auto write(u32 mode, n32 address, n32 word) -> void;
 
   //serialization.cpp
@@ -9,12 +10,13 @@ struct MROM {
   n8* data = nullptr;
   u32 size;
   u32 mask;
+  bool mirror;
 } mrom;
 
 struct SRAM {
   //sram.cpp
-  auto read(u32 mode, n32 address) -> n32;
-  auto write(u32 mode, n32 address, n32 word) -> void;
+  auto read(n32 address) -> n8;
+  auto write(n32 address, n32 word) -> void;
 
   //serialization.cpp
   auto serialize(serializer&) -> void;

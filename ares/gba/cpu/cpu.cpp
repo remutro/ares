@@ -30,18 +30,20 @@ auto CPU::unload() -> void {
 }
 
 auto CPU::main() -> void {
-  ARM7TDMI::irq = irq.ime && (irq.enable & irq.flag);
+  ARM7TDMI::irq = irq.ime && (irq.enable[0] & irq.flag[0]);
 
   if(stopped()) {
-    if(!(irq.enable & irq.flag & Interrupt::Keypad)) {
+    if(!keypad.conditionMet) {
+      stepIRQ();
       Thread::step(16);
       Thread::synchronize();
+      return;
     }
     context.stopped = false;
   }
 
   if(halted()) {
-    if(!(irq.enable & irq.flag)) {
+    if(!(irq.enable[0] & irq.flag[0])) {
       return step(16);
     }
     context.halted = false;
@@ -51,33 +53,63 @@ auto CPU::main() -> void {
   instruction();
 }
 
+auto CPU::dmaRun() -> void {
+  if(!context.dmaActive && !context.prefetchActive) {
+    context.dmaActive = true;
+    while(dma[0].run() | dma[1].run() | dma[2].run() | dma[3].run());
+    if(context.dmaRan) {
+      idle();
+      context.dmaRan = false;
+      context.dmaRomAccess = false;
+    }
+    context.dmaActive = false;
+  }
+}
+
+auto CPU::setInterruptFlag(u32 source) -> void {
+  irq.flag[1] |= source;
+}
+
+inline auto CPU::stepIRQ() -> void {
+  irq.enable[0] = irq.enable[1];
+  irq.flag[0] = irq.flag[1];
+}
+
 auto CPU::step(u32 clocks) -> void {
   if(!clocks) return;
+
+  dmaRun();
 
   dma[0].waiting = max(0, dma[0].waiting - (s32)clocks);
   dma[1].waiting = max(0, dma[1].waiting - (s32)clocks);
   dma[2].waiting = max(0, dma[2].waiting - (s32)clocks);
   dma[3].waiting = max(0, dma[3].waiting - (s32)clocks);
 
-  if(!context.dmaActive) {
-    context.dmaActive = true;
-    while(dma[0].run() | dma[1].run() | dma[2].run() | dma[3].run());
-    context.dmaActive = false;
-  }
-
   for(auto _ : range(clocks)) {
+    stepIRQ();
     timer[0].run();
     timer[1].run();
     timer[2].run();
     timer[3].run();
+    timer[0].reloadLatch();
+    timer[1].reloadLatch();
+    timer[2].reloadLatch();
+    timer[3].reloadLatch();
+    if(context.timerLatched) {
+      timer[0].stepLatch();
+      timer[1].stepLatch();
+      timer[2].stepLatch();
+      timer[3].stepLatch();
+      context.timerLatched = 0;
+    }
     context.clock++;
   }
 
   #if defined(PROFILE_PERFORMANCE)
-  //20% speedup by only synchronizing other components every 64 clock cycles
+  //10-20% speedup by only synchronizing other components every 16 clock cycles
   static u32 counter = 0;
   counter += clocks;
-  if(counter < 64) return;
+  if(counter < 16) return;
   clocks = counter;
   counter = 0;
   #endif
@@ -104,8 +136,6 @@ auto CPU::power() -> void {
   prefetch = {};
   context = {};
 
-  dmabus = {};
-
   dma[0].source.setBits(27); dma[0].latch.source.setBits(27);
   dma[0].target.setBits(27); dma[0].latch.target.setBits(27);
   dma[0].length.setBits(14); dma[0].latch.length.setBits(14);
@@ -126,9 +156,9 @@ auto CPU::power() -> void {
   for(u32 n = 0x100; n <= 0x10f; n++) bus.io[n] = this;  //Timers
   for(u32 n = 0x120; n <= 0x12b; n++) bus.io[n] = this;  //Serial
   for(u32 n = 0x130; n <= 0x133; n++) bus.io[n] = this;  //Keypad
-  for(u32 n = 0x134; n <= 0x159; n++) bus.io[n] = this;  //Serial
-  for(u32 n = 0x200; n <= 0x209; n++) bus.io[n] = this;  //System
-  for(u32 n = 0x300; n <= 0x301; n++) bus.io[n] = this;  //System
+  for(u32 n = 0x134; n <= 0x15b; n++) bus.io[n] = this;  //Serial
+  for(u32 n = 0x200; n <= 0x20b; n++) bus.io[n] = this;  //System
+  for(u32 n = 0x300; n <= 0x303; n++) bus.io[n] = this;  //System
   //0x080-0x083 mirrored via gba/memory/memory.cpp        //System
 }
 

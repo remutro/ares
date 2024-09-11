@@ -10,6 +10,8 @@ struct Presentation : Window {
   auto loadShaders() -> void;
   auto refreshSystemMenu() -> void;
 
+  vector<string> shaderDirectories;
+
   MenuBar menuBar{this};
     Menu loadMenu{&menuBar};
     Menu systemMenu{&menuBar};
@@ -63,6 +65,7 @@ struct Presentation : Window {
       MenuItem reloadGame{&toolsMenu};
       MenuSeparator toolsMenuSeparatorB{&toolsMenu};
       MenuItem manifestViewerAction{&toolsMenu};
+      MenuItem cheatEditorAction{&toolsMenu};
       #if !defined(PLATFORM_MACOS)
       // Cocoa hiro is missing the hex editor widget
       MenuItem memoryEditorAction{&toolsMenu};
@@ -77,12 +80,12 @@ struct Presentation : Window {
   VerticalLayout layout{this};
     HorizontalLayout viewportLayout{&layout, Size{~0, ~0}, 0};
       Viewport viewport{&viewportLayout, Size{~0, ~0}, 0};
-      VerticalLayout iconLayout{&viewportLayout, Size{128, ~0}, 0};
-        Canvas iconSpacer{&iconLayout, Size{128, ~0}, 0};
-        HorizontalLayout iconHorizontal{&iconLayout, Size{128, 128}, 0};
-          Canvas iconCanvas{&iconHorizontal, Size{112, 128}, 0};
+      VerticalLayout iconLayout{&viewportLayout, Size{144, ~0}, 0};
+        Canvas iconSpacer{&iconLayout, Size{144, ~0}, 0};
+        HorizontalLayout iconHorizontal{&iconLayout, Size{144, 128}, 0};
+          Canvas iconCanvas{&iconHorizontal, Size{128, 128}, 0};
           Canvas iconPadding{&iconHorizontal, Size{16, 128}, 0};
-        Canvas iconBottom{&iconLayout, Size{128, 10}, 0};
+        Canvas iconBottom{&iconLayout, Size{144, 10}, 0};
     HorizontalLayout statusLayout{&layout, Size{~0, StatusHeight}, 0};
       Label spacerLeft{&statusLayout, Size{8, ~0}, 0};
       Label statusLeft{&statusLayout, Size{~0, ~0}, 0};

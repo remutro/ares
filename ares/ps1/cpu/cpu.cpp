@@ -65,37 +65,41 @@ auto CPU::synchronize() -> void {
 }
 
 auto CPU::instruction() -> void {
-  if constexpr(Accuracy::CPU::Interpreter) {
+  if(Accuracy::CPU::Interpreter || !recompiler.enabled) {
     if constexpr(Accuracy::CPU::Breakpoints) {
       if(unlikely(breakpoint.testCode(ipu.pc))) {
-        return (void)instructionEpilogue();
+        return (void)instructionEpilogue<0>();
       }
     }
 
     if constexpr(Accuracy::CPU::AddressErrors) {
       if(unlikely(ipu.pc & 3)) {
         exception.address<Read>(ipu.pc);
-        return (void)instructionEpilogue();
+        return (void)instructionEpilogue<0>();
       }
     }
 
-    pipeline.address = ipu.pc;
-    pipeline.instruction = fetch(ipu.pc);
-    if(exception()) return (void)instructionEpilogue();
+    u32 instruction = fetch(ipu.pc);
+    if(exception()) return (void)instructionEpilogue<0>();
 
-    debugger.instruction();
+    instructionPrologue(instruction);
     decoderEXECUTE();
-    instructionEpilogue();
-  }
-
-  if constexpr(Accuracy::CPU::Recompiler) {
+    instructionEpilogue<0>();
+  } else {
     auto block = recompiler.block(ipu.pc);
     block->execute(*this);
   }
 }
 
+auto CPU::instructionPrologue(u32 instruction) -> void {
+  pipeline.address = ipu.pc;
+  pipeline.instruction = instruction;
+  debugger.instruction();
+}
+
+template<bool Recompiled>
 auto CPU::instructionEpilogue() -> s32 {
-  if constexpr(Accuracy::CPU::Recompiler) {
+  if constexpr(Recompiled) {
     icache.step(ipu.pc);  //simulates timings without performing actual icache loads
   }
 
