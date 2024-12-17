@@ -42,6 +42,10 @@ auto pWindow::construct() -> void {
   setDroppable(state().droppable);
   setGeometry({128, 128, 256, 256});
 
+  //disable rounded window corners on Windows 11 so all pixels will be available when status bar is disabled
+  const DWM_WINDOW_CORNER_PREFERENCE winCornerPref = DWMWCP_DONOTROUND;
+  DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &winCornerPref, sizeof(winCornerPref));
+
   windows.append(self().instance);
 }
 
