@@ -15,6 +15,11 @@
   #include <ruby/video/direct3d9.cpp>
 #endif
 
+#if defined(VIDEO_DIRECT3D11)
+  #include <ruby/video/direct3d11.cpp>
+  #include <ruby/video/direct3d11/d3d11device.cpp>
+#endif
+
 #if defined(VIDEO_GLX)
   #include <ruby/video/glx.cpp>
 #endif
@@ -190,6 +195,10 @@ auto Video::create(string driver) -> bool {
   if(driver == "Direct3D 9.0") self.instance = new VideoDirect3D9(*this);
   #endif
 
+  #if defined(VIDEO_DIRECT3D11)
+  if(driver == "Direct3D 11.1") self.instance = new VideoDirect3D11(*this);
+  #endif
+
   #if defined(VIDEO_GLX)
   if(driver == "OpenGL 3.2") self.instance = new VideoGLX(*this);
   #endif
@@ -218,6 +227,10 @@ auto Video::hasDrivers() -> vector<string> {
   "Direct3D 9.0",
   #endif
 
+  #if defined(VIDEO_DIRECT3D11)
+  "Direct3D 11.1",
+  #endif
+
   #if defined(VIDEO_CGL)
   "OpenGL 3.2",
   #endif
@@ -242,6 +255,8 @@ auto Video::optimalDriver() -> string {
   return "OpenGL 3.2";
   #elif defined(VIDEO_DIRECT3D9)
   return "Direct3D 9.0";
+  #elif defined(VIDEO_DIRECT3D11)
+  return "Direct3D 11.1";
   #elif defined(VIDEO_CGL)
   return "OpenGL 3.2";
   #else
@@ -250,8 +265,10 @@ auto Video::optimalDriver() -> string {
 }
 
 auto Video::safestDriver() -> string {
-  #if defined(VIDEO_DIRECT3D)
+  #if defined(VIDEO_DIRECT3D9)
   return "Direct3D 9.0";
+  #elif defined(VIDEO_DIRECT3D11)
+  return "Direct3D 11.1";
   #elif defined(VIDEO_WGL)
   return "OpenGL 3.2";
   #elif defined(VIDEO_CGL)

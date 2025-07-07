@@ -2,6 +2,9 @@ target_sources(
   ruby
   PRIVATE # cmake-format: sortable
     video/direct3d9.cpp
+    video/direct3d11.cpp
+    video/direct3d11/d3d11device.hpp
+    video/direct3d11/d3d11device.cpp
     video/wgl.cpp
 )
 
@@ -31,6 +34,7 @@ find_package(SDL)
 find_package(librashader)
 
 target_enable_feature(ruby "Direct3D 9 video driver" VIDEO_DIRECT3D9)
+target_enable_feature(ruby "Direct3D 11 video driver" VIDEO_DIRECT3D11)
 target_enable_feature(ruby "OpenGL video driver" VIDEO_WGL)
 target_enable_feature(ruby "WASAPI audio driver" AUDIO_WASAPI)
 target_enable_feature(ruby "XAudio2 audio driver" AUDIO_XAUDIO2)
@@ -55,6 +59,8 @@ target_link_libraries(
     $<$<BOOL:TRUE>:librashader::librashader>
     $<$<BOOL:${SDL_FOUND}>:SDL::SDL>
     d3d9
+    d3d11
+    d3dcompiler
     opengl32
     dsound
     uuid
