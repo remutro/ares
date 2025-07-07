@@ -308,8 +308,35 @@ auto MCD::CDD::process() -> void {
   //case Command::TrackCue: {
   //} break;
 
+  // Close the tray door (0xc)
+  case Command::DoorClose: {
+    //insert();
+    
+    io.status = mcd.fd ? Status::ReadingTOC : Status::NoDisc;
+
+    status[1] = Status::Stopped;
+    status[2] = 0x0; status[3] = 0x0;
+    status[4] = 0x0; status[5] = 0x0;
+    status[6] = 0x0; status[7] = 0x0;
+    status[8] = 0x0;
+  } break;
+      
+  // Open the tray door (0xd)
+  case Command::DoorOpen: {
+    //eject();
+
+    io.status = Status::DoorOpened;
+
+    status[1] = Status::Stopped;
+    status[2] = 0x0; status[3] = 0x0;
+    status[4] = 0x0; status[5] = 0x0;
+    status[6] = 0x0; status[7] = 0x0;
+    status[8] = 0x0;
+  } break;
+
   default:
     io.status = Status::CommandError;
+    commandUnimplemented(command[0]);
   }
 
   status[0] = io.status;
@@ -373,4 +400,8 @@ auto MCD::CDD::power(bool reset) -> void {
   for(auto& data : command) data = 0x0;
   insert();
   checksum();
+}
+
+auto MCD::CDD::commandUnimplemented(u8 operation) -> void {
+  debug(unimplemented, "Disc command: 0x", hex(operation, 2L), ")");
 }

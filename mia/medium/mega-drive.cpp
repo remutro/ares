@@ -284,6 +284,10 @@ auto MegaDrive::analyzeRegion(vector<u8>& rom, string hash) -> void {
   if(location.ifind("(Europe)") || location.ifind("(PAL)")) {
     regions.reset();
     regions.append("PAL");
+  } else if(hash == "0930b77d0474e99c10690245cac12a6618b6c16420e3575379aba6e715ea797a") {
+    //Alisia Dragoon (Europe)
+    regions.reset();
+    regions.append("PAL");
   }
 }
 

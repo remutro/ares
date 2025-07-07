@@ -313,6 +313,7 @@ struct MCD : M68000, Thread {
     auto insert() -> void;
     auto eject() -> void;
     auto power(bool reset) -> void;
+    auto commandUnimplemented(u8 operation) -> void;
 
     //serialization.cpp
     auto serialize(serializer&) -> void;
