@@ -41,14 +41,13 @@ auto D3D11Device::createDevice(HWND context, const u32 windowWidth, const u32 wi
     _pImmediateContext->OMSetRenderTargets( 1, &_pRenderTargetView, nullptr );
 
     // Setup the viewport
-    D3D11_VIEWPORT vp;
-    vp.Width = (FLOAT)windowWidth;
-    vp.Height = (FLOAT)windowHeight;
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-    vp.TopLeftX = 0;
-    vp.TopLeftY = 0;
-    _pImmediateContext->RSSetViewports( 1, &vp );
+    _vp.Width = (FLOAT)windowWidth;
+    _vp.Height = (FLOAT)windowHeight;
+    _vp.MinDepth = 0.0f;
+    _vp.MaxDepth = 1.0f;
+    _vp.TopLeftX = 0;
+    _vp.TopLeftY = 0;
+    _pImmediateContext->RSSetViewports( 1, &_vp );
 
     // Compile the vertex shader
     ID3DBlob* pVSBlob = nullptr;
@@ -168,7 +167,7 @@ auto D3D11Device::render(void) -> bool {
     // Present the information rendered to the back buffer to the front buffer (the screen)
     _pSwapChain->Present( 0, 0 );
 
-    return true; //Fix me
+       return true; //Fix me
 }
 
 auto D3D11Device::compileShaderFile(const WCHAR* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut) -> HRESULT {

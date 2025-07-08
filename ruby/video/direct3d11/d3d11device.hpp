@@ -17,6 +17,8 @@ public:
   auto compileShaderFile(const WCHAR* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut) -> HRESULT;
 
   HRESULT hr = S_OK;
+  
+  D3D11_VIEWPORT          _vp;
   D3D_FEATURE_LEVEL       _featureLevel = D3D_FEATURE_LEVEL_11_1;
   ID3D11Device*           _pd3dDevice = nullptr;
   ID3D11Device1*          _pd3dDevice1 = nullptr;
