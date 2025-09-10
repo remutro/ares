@@ -65,11 +65,13 @@ auto Program::videoPseudoFullScreenToggle() -> void {
   if(!presentation.fullScreen()) {
     presentation.setFullScreen(true);
     presentation.menuBar.setVisible(false);
-    if(!ruby::input.acquired() && ruby::video.hasMonitors().size() == 1) ruby::input.acquire();
-  } else {
-    if(ruby::input.acquired()) ruby::input.release();
-    presentation.menuBar.setVisible(true);
-    presentation.setFullScreen(false);
+    if(!ruby::input.acquired() && ruby::video.hasMonitors().size() == 1) {
+      ruby::input.acquire();
+    } else {
+      if(ruby::input.acquired()) ruby::input.release();
+      presentation.menuBar.setVisible(true);
+      presentation.setFullScreen(false);
+    }
   }
 }
 

@@ -57,6 +57,7 @@ struct Program : ares::Platform {
   auto inputDriverUpdate() -> void;
 
   bool startFullScreen = false;
+  bool startPseudoFullScreen = false;
   vector<string> startGameLoad;
   bool noFilePrompt = false;
 

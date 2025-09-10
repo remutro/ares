@@ -28,7 +28,11 @@ auto Program::create() -> void {
       for(auto &emulator: emulators) {
         if(emulator->name == startSystem) {
           if(load(emulator, gameToLoad)) {
-            if(startFullScreen) videoFullScreenToggle();
+            if(startFullScreen) {
+              videoFullScreenToggle();
+            } else {
+              videoPseudoFullScreenToggle();
+            }
           }
           return;
         }
@@ -37,7 +41,11 @@ auto Program::create() -> void {
 
     if(auto emulator = identify(gameToLoad)) {
       if(load(emulator, gameToLoad)) {
-        if(startFullScreen) videoFullScreenToggle();
+        if(startFullScreen) {
+          videoFullScreenToggle();
+        } else {
+          videoPseudoFullScreenToggle();
+        }
       }
     }
   }
