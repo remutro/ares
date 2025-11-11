@@ -452,6 +452,7 @@ auto Nintendo64::analyze(std::vector<u8>& data) -> string {
   //128KB Flash
   if(id == "NCC") {flash = 128_KiB; rpak = true;}                          //Command & Conquer
   if(id == "NDA") {flash = 128_KiB; cpak = true;}                          //Derby Stallion 64
+  if(id == "NCV") {flash = 128_KiB;}                                       //Doubutsu Banchou [Cubivore]
   if(id == "NAF") {flash = 128_KiB; cpak = true; rtc = true;}              //Doubutsu no Mori
   if(id == "NJF") {flash = 128_KiB; rpak = true;}                          //Jet Force Gemini [Star Twins (J)]
   if(id == "NKJ") {flash = 128_KiB; rpak = true;}                          //Ken Griffey Jr.'s Slugfest
