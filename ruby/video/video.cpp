@@ -32,6 +32,8 @@
   #include <ruby/video/metal/metal.cpp>
 #endif
 
+#include <memory>
+
 namespace ruby {
 
 auto Video::setFullScreen(bool fullScreen) -> bool {
@@ -170,7 +172,7 @@ auto Video::poll() -> void {
 
 //
 
-auto Video::onUpdate(const function<void (u32, u32)>& onUpdate) -> void {
+auto Video::onUpdate(const std::function<void (u32, u32)>& onUpdate) -> void {
   lock_guard<recursive_mutex> lock(mutex);
   update = onUpdate;
 }
@@ -188,11 +190,11 @@ auto Video::create(string driver) -> bool {
   if(!driver) driver = optimalDriver();
 
   #if defined(VIDEO_CGL)
-  if(driver == "OpenGL 3.2") self.instance = new VideoCGL(*this);
+  if(driver == "OpenGL 3.2") self.instance = std::make_unique<VideoCGL>(*this);
   #endif
 
   #if defined(VIDEO_DIRECT3D9)
-  if(driver == "Direct3D 9.0") self.instance = new VideoDirect3D9(*this);
+  if(driver == "Direct3D 9.0") self.instance = std::make_unique<VideoDirect3D9>(*this);
   #endif
 
   #if defined(VIDEO_DIRECT3D11)
@@ -200,23 +202,23 @@ auto Video::create(string driver) -> bool {
   #endif
 
   #if defined(VIDEO_GLX)
-  if(driver == "OpenGL 3.2") self.instance = new VideoGLX(*this);
+  if(driver == "OpenGL 3.2") self.instance = std::make_unique<VideoGLX>(*this);
   #endif
 
   #if defined(VIDEO_WGL)
-  if(driver == "OpenGL 3.2") self.instance = new VideoWGL(*this);
+  if(driver == "OpenGL 3.2") self.instance = std::make_unique<VideoWGL>(*this);
   #endif
   
   #if defined(VIDEO_METAL)
-  if(driver == "Metal") self.instance = new VideoMetal(*this);
+  if(driver == "Metal") self.instance = std::make_unique<VideoMetal>(*this);
   #endif
 
-  if(!self.instance) self.instance = new VideoDriver(*this);
+  if(!self.instance) self.instance = std::make_unique<VideoDriver>(*this);
 
   return self.instance->create();
 }
 
-auto Video::hasDrivers() -> vector<string> {
+auto Video::hasDrivers() -> std::vector<string> {
   return {
 
   #if defined(VIDEO_WGL)
@@ -284,7 +286,7 @@ auto Video::safestDriver() -> string {
 
 #if defined(DISPLAY_WINDOWS)
 static auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) -> BOOL {
-  vector<Video::Monitor>& monitors = *(vector<Video::Monitor>*)dwData;
+  std::vector<Video::Monitor>& monitors = *(std::vector<Video::Monitor>*)dwData;
   MONITORINFOEX mi{};
   mi.cbSize = sizeof(MONITORINFOEX);
   GetMonitorInfo(hMonitor, &mi);
@@ -301,16 +303,16 @@ static auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT l
   monitor.y = lprcMonitor->top;
   monitor.width = lprcMonitor->right - lprcMonitor->left;
   monitor.height = lprcMonitor->bottom - lprcMonitor->top;
-  monitors.append(monitor);
+  monitors.push_back(monitor);
   return true;
 }
 
-auto Video::hasMonitors() -> vector<Monitor> {
-  vector<Monitor> monitors;
+auto Video::hasMonitors() -> std::vector<Monitor> {
+  std::vector<Monitor> monitors;
   EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)&monitors);
-  vector<Monitor> sorted;
-  for(auto& monitor : monitors) { if(monitor.primary == 1) sorted.append(monitor); }
-  for(auto& monitor : monitors) { if(monitor.primary == 0) sorted.append(monitor); }
+  std::vector<Monitor> sorted;
+  for(auto& monitor : monitors) { if(monitor.primary == 1) sorted.push_back(monitor); }
+  for(auto& monitor : monitors) { if(monitor.primary == 0) sorted.push_back(monitor); }
   return sorted;
 }
 #endif
@@ -320,8 +322,8 @@ static auto MonitorKeyArrayCallback(const void* key, const void* value, void* co
   CFArrayAppendValue((CFMutableArrayRef)context, key);
 }
 
-auto Video::hasMonitors() -> vector<Monitor> {
-  vector<Monitor> monitors;
+auto Video::hasMonitors() -> std::vector<Monitor> {
+  std::vector<Monitor> monitors;
   @autoreleasepool {
     u32 count = [[NSScreen screens] count];
     for(u32 index : range(count)) {
@@ -361,7 +363,7 @@ auto Video::hasMonitors() -> vector<Monitor> {
         }
         CFRelease(dictionary);
       }
-      monitors.append(monitor);
+      monitors.push_back(monitor);
     }
   }
   return monitors;
@@ -369,8 +371,8 @@ auto Video::hasMonitors() -> vector<Monitor> {
 #endif
 
 #if defined(DISPLAY_XORG)
-auto Video::hasMonitors() -> vector<Monitor> {
-  vector<Monitor> monitors;
+auto Video::hasMonitors() -> std::vector<Monitor> {
+  std::vector<Monitor> monitors;
 
   auto display = XOpenDisplay(nullptr);
   auto screen = DefaultScreen(display);
@@ -415,16 +417,16 @@ auto Video::hasMonitors() -> vector<Monitor> {
       }
     }
     XFree(data);
-    monitors.append(monitor);
+    monitors.push_back(monitor);
     XRRFreeCrtcInfo(crtc);
     XRRFreeOutputInfo(output);
   }
   XRRFreeScreenResources(resources);
   XCloseDisplay(display);
 
-  vector<Monitor> sorted;
-  for(auto& monitor : monitors) { if(monitor.primary == 1) sorted.append(monitor); }
-  for(auto& monitor : monitors) { if(monitor.primary == 0) sorted.append(monitor); }
+  std::vector<Monitor> sorted;
+  for(auto& monitor : monitors) { if(monitor.primary == 1) sorted.push_back(monitor); }
+  for(auto& monitor : monitors) { if(monitor.primary == 0) sorted.push_back(monitor); }
   return sorted;
 }
 #endif
@@ -440,7 +442,7 @@ auto Video::monitor(string name) -> Monitor {
     if(monitor.primary) return monitor;
   }
   //if only one monitor is found, but it is not primary, use that
-  if(monitors.size() == 1) return monitors.left();
+  if(monitors.size() == 1) return monitors[0];
   //Video::monitors() should never let this occur
   Monitor monitor;
   monitor.name = "Primary";

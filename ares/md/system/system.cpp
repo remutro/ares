@@ -1,8 +1,9 @@
 #include <md/md.hpp>
+#include <algorithm>
 
 namespace ares::MegaDrive {
 
-auto enumerate() -> vector<string> {
+auto enumerate() -> std::vector<string> {
   return {
     //Mega Drive
     "[Sega] Mega Drive (NTSC-J)",
@@ -20,11 +21,15 @@ auto enumerate() -> vector<string> {
     "[Sega] Mega CD 32X (NTSC-J)",
     "[Sega] Mega CD 32X (NTSC-U)",
     "[Sega] Mega CD 32X (PAL)",
+    //Mega LD
+    "[Pioneer] LaserActive (SEGA PAC) (NTSC-J)",
+    "[Pioneer] LaserActive (SEGA PAC) (NTSC-U)",
   };
 }
 
 auto load(Node::System& node, string name) -> bool {
-  if(!enumerate().find(name)) return false;
+  auto list = enumerate();
+  if(std::find(list.begin(), list.end(), name) == list.end()) return false;
   return system.load(node, name);
 }
 
@@ -74,25 +79,36 @@ auto System::load(Node::System& root, string name) -> bool {
     information.name = "Mega Drive";
     information.mega32X = 0;
     information.megaCD = 0;
+    information.megaLD = 0;
     cpu.minCyclesBetweenSyncs = 0; // sync every cycle
   }
   if(name.match("[Sega] Mega 32X (*)")) {
     information.name = "Mega Drive";
     information.mega32X = 1;
     information.megaCD = 0;
+    information.megaLD = 0;
     cpu.minCyclesBetweenSyncs = 14; // sync approx every 24-25 pixels
   }
   if(name.match("[Sega] Mega CD (*)")) {
     information.name = "Mega Drive";
     information.mega32X = 0;
     information.megaCD = 1;
+    information.megaLD = 0;
     cpu.minCyclesBetweenSyncs = 0; // sync every cycle
   }
   if(name.match("[Sega] Mega CD 32X (*)")) {
     information.name = "Mega Drive";
     information.mega32X = 1;
     information.megaCD = 1;
-    cpu.minCyclesBetweenSyncs = 40; // sync approx every 70 pixels
+    information.megaLD = 0;
+    cpu.minCyclesBetweenSyncs = 10; // sync approx every 1 pixel
+  }
+  if(name.beginsWith("[Pioneer] LaserActive")) {
+    information.name = "Mega Drive";
+    information.mega32X = 0;
+    information.megaCD = 1;
+    information.megaLD = 1;
+    cpu.minCyclesBetweenSyncs = 4; // sync approx every 7 pixels
   }
   if(name.find("NTSC-J")) {
     information.region = Region::NTSCJ;
@@ -107,15 +123,15 @@ auto System::load(Node::System& root, string name) -> bool {
     information.frequency = Constants::Colorburst::PAL * 12.0;
   }
 
-  node = Node::System::create(information.name);
+  node = std::make_shared<Core::System>(information.name);
   node->setAttribute("configuration", name);
-  node->setGame({&System::game, this});
-  node->setRun({&System::run, this});
-  node->setPower({&System::power, this});
-  node->setSave({&System::save, this});
-  node->setUnload({&System::unload, this});
-  node->setSerialize({&System::serialize, this});
-  node->setUnserialize({&System::unserialize, this});
+  node->setGame(std::bind_front(&System::game, this));
+  node->setRun(std::bind_front(&System::run, this));
+  node->setPower(std::bind_front(&System::power, this));
+  node->setSave(std::bind_front(&System::save, this));
+  node->setUnload(std::bind_front(&System::unload, this));
+  node->setSerialize([this](bool save) -> serializer { return serialize(save); });
+  node->setUnserialize(std::bind_front(&System::unserialize, this));
   root = node;
   if(!node->setPak(pak = platform->pak(node))) return false;
 

@@ -26,7 +26,7 @@ auto VI::load(Node::Object parent) -> void {
   }
   #endif
   screen = node->append<Node::Video::Screen>("Screen", width, height);
-  screen->setRefresh({&VI::refresh, this});
+  screen->setRefresh(std::bind_front(&VI::refresh, this));
   screen->refreshRateHint(Region::PAL() ? 50 : 60); // TODO: More accurate refresh rate hint
   screen->colors((1 << 24) + (1 << 15), [&](n32 color) -> n64 {
     if(color < (1 << 24)) {
@@ -44,18 +44,25 @@ auto VI::load(Node::Object parent) -> void {
     }
   });
   
+  int videoHeight = Region::PAL() ? 576 : 480;
+
   #if defined(VULKAN)
   if(vulkan.enable) {
-    screen->setSize(vulkan.outputUpscale * 640, vulkan.outputUpscale * 480);
+    screen->setSize(vulkan.outputUpscale * 640, vulkan.outputUpscale * videoHeight);
     if(!vulkan.supersampleScanout) {
       screen->setScale(1.0 / vulkan.outputUpscale, 1.0 / vulkan.outputUpscale);
     }
   } else {
-    screen->setSize(640, 480);
+    screen->setSize(640, videoHeight);
   }
   #else
-  screen->setSize(640, 480);
+  screen->setSize(640, videoHeight);
   #endif
+
+  // Pedantic N64 NTSC aspect ratio is 120:119, but let's keep 120:120 to avoid slight scaling.
+  // Pedantic N64 PAL aspect ratio is 5900000:4965653, but let's use 12:10 to achieve the
+  // same aspect ratio as NTSC.
+  Region::PAL() ? screen->setAspect(12, 10) : screen->setAspect(120, 120);
 
   debugger.load(node);
 }
@@ -106,10 +113,10 @@ auto VI::main() -> void {
         }
       }
 
-      u32 lineDuration = io.quarterLineDuration;
+      u32 lineDuration = io.quarterLineDuration+1;
       if(io.vcounter == 1)
         lineDuration = io.hsyncLeap[io.leapPattern.bit(io.leapCounter)];      
-      step(io.quarterLineDuration);
+      step(lineDuration);
     } else {
       // Arbitrarily call screen->frame() every once in a while to keep the UI responsive.
       // We do that every 200 simulated lines of 0x800 quarter-clocks. This is just arbitrary,

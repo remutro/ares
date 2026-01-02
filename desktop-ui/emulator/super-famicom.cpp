@@ -2,9 +2,9 @@ struct SuperFamicom : Emulator {
   SuperFamicom();
   auto load() -> LoadResult override;
   auto save() -> bool override;
-  auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
+  auto pak(ares::Node::Object) -> std::shared_ptr<vfs::directory> override;
 
-  shared_pointer<mia::Pak> gb, bs, stA, stB;
+  std::shared_ptr<mia::Pak> gb, bs, stA, stB;
 };
 
 SuperFamicom::SuperFamicom() {
@@ -27,6 +27,22 @@ SuperFamicom::SuperFamicom() {
     device.digital("R",      virtualPorts[id].pad.r_bumper);
     device.digital("Select", virtualPorts[id].pad.select);
     device.digital("Start",  virtualPorts[id].pad.start);
+    port.append(device); }
+
+  { InputDevice device{"Rumble Gamepad"};
+    device.digital("Up",     virtualPorts[id].pad.up);
+    device.digital("Down",   virtualPorts[id].pad.down);
+    device.digital("Left",   virtualPorts[id].pad.left);
+    device.digital("Right",  virtualPorts[id].pad.right);
+    device.digital("B",      virtualPorts[id].pad.south);
+    device.digital("A",      virtualPorts[id].pad.east);
+    device.digital("Y",      virtualPorts[id].pad.west);
+    device.digital("X",      virtualPorts[id].pad.north);
+    device.digital("L",      virtualPorts[id].pad.l_bumper);
+    device.digital("R",      virtualPorts[id].pad.r_bumper);
+    device.digital("Select", virtualPorts[id].pad.select);
+    device.digital("Start",  virtualPorts[id].pad.start);
+    device.rumble("Rumble",  virtualPorts[id].pad.rumble);
     port.append(device); }
 
   { InputDevice device{"Justifier"};
@@ -87,7 +103,7 @@ SuperFamicom::SuperFamicom() {
     device.digital("2", virtualPorts[id].pad.east);
     port.append(device); }
 
-    ports.append(port);
+    ports.push_back(port);
   }
 
   inputBlacklist = {"Justifiers", "Super Multitap"};
@@ -114,7 +130,7 @@ auto SuperFamicom::load() -> LoadResult {
     port->connect();
 
     if(auto slot = cartridge->find<ares::Node::Port>("Super Game Boy/Cartridge Slot")) {
-      gb = mia::Medium::create("Game Boy");
+      gb = mia::Medium::create("Game Boy Color");
       if(gb->load(Emulator::load(gb, settings.paths.superFamicom.gameBoy)) == successful) {
         slot->allocate();
         slot->connect();
@@ -178,15 +194,16 @@ auto SuperFamicom::save() -> bool {
   return true;
 }
 
-auto SuperFamicom::pak(ares::Node::Object node) -> shared_pointer<vfs::directory> {
+auto SuperFamicom::pak(ares::Node::Object node) -> std::shared_ptr<vfs::directory> {
   if(node->name() == "Super Famicom") return system->pak;
   if(node->name() == "Super Famicom Cartridge") return game->pak;
   if(node->name() == "Game Boy Cartridge") return gb->pak;
   if(node->name() == "Game Boy Color Cartridge") return gb->pak;
   if(node->name() == "BS Memory Cartridge") return bs->pak;
   if(node->name() == "Sufami Turbo Cartridge") {
-    if(auto parent = node->parent()) {
-      if(auto port = parent.acquire()) {
+    auto wp = node->parent();
+    if(!wp.expired()) {
+      if(auto port = wp.lock()) {
         if(port->name() == "Sufami Turbo Slot A") return stA->pak;
         if(port->name() == "Sufami Turbo Slot B") return stB->pak;
       }

@@ -1,14 +1,12 @@
 struct Program : ares::Platform {
   auto create() -> void;
   auto main() -> void;
-  auto emulatorRunLoop(uintptr_t) -> void;
   auto quit() -> void;
-  auto waitForInterrupts() -> void;
 
   //platform.cpp
   auto attach(ares::Node::Object) -> void override;
   auto detach(ares::Node::Object) -> void override;
-  auto pak(ares::Node::Object) -> shared_pointer<vfs::directory> override;
+  auto pak(ares::Node::Object) -> std::shared_ptr<vfs::directory> override;
   auto event(ares::Event) -> void override;
   auto log(ares::Node::Debugger::Tracer::Tracer tracer, string_view message) -> void override;
   auto status(string_view message) -> void override;
@@ -19,8 +17,8 @@ struct Program : ares::Platform {
   auto cheat(u32 address) -> maybe<u32> override;
 
   //load.cpp
-  auto identify(const string& filename) -> shared_pointer<Emulator>;
-  auto load(shared_pointer<Emulator> emulator, string location = {}) -> bool;
+  auto identify(const string& filename) -> std::shared_ptr<Emulator>;
+  auto load(std::shared_ptr<Emulator> emulator, string location = {}) -> bool;
   auto load(string location) -> bool;
   auto unload() -> void;
 
@@ -59,14 +57,14 @@ struct Program : ares::Platform {
   auto inputDriverUpdate() -> void;
 
   bool startFullScreen = false;
-  vector<string> startGameLoad;
+  std::vector<string> startGameLoad;
   bool noFilePrompt = false;
 
   string startSystem;
   string startShader;
 
-  vector<ares::Node::Video::Screen> screens;
-  vector<ares::Node::Audio::Stream> streams;
+  std::vector<ares::Node::Video::Screen> screens;
+  std::vector<ares::Node::Audio::Stream> streams;
 
   bool paused = false;
   bool fastForwarding = false;
@@ -84,7 +82,7 @@ struct Program : ares::Platform {
   //rewind.cpp
   struct Rewind {
     enum class Mode : u32 { Playing, Rewinding } mode = Mode::Playing;
-    vector<serializer> history;
+    std::vector<serializer> history;
     u32 length = 0;
     u32 frequency = 0;
     u32 counter = 0;
@@ -100,7 +98,7 @@ struct Program : ares::Platform {
 
   class Guard;
 
-  vector<Message> messages;
+  std::vector<Message> messages;
   string configuration;
   atomic<u64> vblanksPerSecond = 0;
 
@@ -110,9 +108,14 @@ struct Program : ares::Platform {
   std::recursive_mutex inputMutex;
   
 private:
+  /// Routine used while the emulator thread is waiting for work to complete that modifies its state.
+  auto waitForInterrupts() -> void;
+  /// The main run loop for the emulator thread spawned on startup.
+  auto emulatorRunLoop(uintptr_t) -> void;
+
   atomic<bool> _quitting = false;
   atomic<bool> _needsResize = false;
-  
+
   /// Mutex used to manage access to the status message queue.
   std::recursive_mutex _messageMutex;
 
@@ -132,6 +135,8 @@ private:
   NALL_USED auto getProgramThreadValue() -> bool {
     return _programThread;
   }
+  /// Unique lock used by `Program::Guard` instances to synchronize interrupts. Generally this should not be used directly, with synchronization happening via `Program::Guard` construction. However, it is still exposed for exceptions such as the exit handler in `Program::quit()`.
+  std::unique_lock<std::mutex> lock{_programMutex, std::defer_lock};
 };
 
 extern Program program;

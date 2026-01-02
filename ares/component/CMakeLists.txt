@@ -1,5 +1,9 @@
 list(REMOVE_DUPLICATES ares.components)
 
+set(ARES_COMPONENTS_LIST "${ares.components}" CACHE STRING "Enabled shared hardware components" FORCE)
+
+mark_as_advanced(ARES_COMPONENTS_LIST)
+
 ares_add_sources(INCLUDED CMakeLists.txt)
 
 macro(component_sources)
@@ -134,6 +138,7 @@ component_sources(
   INCLUDED
     processor/arm7tdmi/algorithms.cpp
     processor/arm7tdmi/arm7tdmi.hpp
+    processor/arm7tdmi/coprocessor.cpp
     processor/arm7tdmi/disassembler.cpp
     processor/arm7tdmi/instruction.cpp
     processor/arm7tdmi/instructions-arm.cpp
