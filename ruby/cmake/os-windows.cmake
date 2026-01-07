@@ -3,7 +3,6 @@ target_sources(
   PRIVATE #
     video/direct3d9.cpp
     video/direct3d11.cpp
-    video/direct3d11/d3d11device.hpp
     video/direct3d11/d3d11device.cpp
     video/wgl.cpp
 )

@@ -198,7 +198,7 @@ auto Video::create(string driver) -> bool {
   #endif
 
   #if defined(VIDEO_DIRECT3D11)
-  if(driver == "Direct3D 11.1") self.instance = new VideoDirect3D11(*this);
+  if(driver == "Direct3D 11.1") self.instance = std::make_unique<VideoDirect3D11>(*this);
   #endif
 
   #if defined(VIDEO_GLX)

@@ -1,265 +1,305 @@
 
-auto D3D11Device::createDevice(HWND context, const u32 windowWidth, const u32 windowHeight) -> bool {
+auto D3D11Device::createDeviceAndSwapChain(HWND context, const u32 windowWidth, const u32 windowHeight) -> bool {
     
-    D3D_FEATURE_LEVEL d3dFeatureLevels[] =
-    {
-        D3D_FEATURE_LEVEL_11_1,
-        D3D_FEATURE_LEVEL_11_0,
-        D3D_FEATURE_LEVEL_10_1,
-        D3D_FEATURE_LEVEL_10_0,
-    };
+    DXGI_SWAP_CHAIN_DESC sd = {};
+    sd.BufferCount = 2;
+    sd.BufferDesc.Width = windowWidth;
+    sd.BufferDesc.Height = windowHeight;
+    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = context;
+    sd.SampleDesc.Count = 1;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
-    UINT numFeatureLevels = ARRAYSIZE(d3dFeatureLevels);
-    UINT layerFlags = 0;
+    UINT createFlags = 0;
+#if defined(_DEBUG)
+    createFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
-    if(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, layerFlags, d3dFeatureLevels, numFeatureLevels,
-                         D3D11_SDK_VERSION, &_pd3dDevice, &_featureLevel, &_pImmediateContext) == E_INVALIDARG) {
-        // DirectX 11.0 systems won't recognize feature level 11_1 so retry at level 11_0
-        if(FAILED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, layerFlags, &d3dFeatureLevels[1], numFeatureLevels - 1,
-                                    D3D11_SDK_VERSION, &_pd3dDevice, &_featureLevel, &_pImmediateContext))) { 
-          MessageBox( nullptr, L"Failed to create device.", L"Error", MB_OK);
-          return false; 
-        }
-    }
-  
-    if(FAILED(generateSwapChain(context, windowWidth, windowHeight))) { 
-      MessageBox(nullptr, L"Swap chain creation failure", L"Error", MB_OK);
-      return false; 
-    }
+    D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
+    HRESULT hr = D3D11CreateDeviceAndSwapChain(
+        nullptr,
+        D3D_DRIVER_TYPE_HARDWARE,
+        nullptr,
+        createFlags,
+        nullptr,
+        0,
+        D3D11_SDK_VERSION,
+        &sd,
+        &_pSwapChain,
+        &_pDevice,
+        &featureLevel,
+        &_pDeviceContext);
 
-    // Create a render target view
-    ID3D11Texture2D* pBackBuffer = nullptr;
-    hr = _pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&pBackBuffer));
-    if(FAILED(hr)) { 
-      MessageBox(nullptr, L"Swap chain get buffer failure", L"Error", MB_OK);
-      return false; 
-    }
-
-    hr = _pd3dDevice->CreateRenderTargetView(pBackBuffer, nullptr, &_pRenderTargetView);
-    pBackBuffer->Release();
-    if(FAILED(hr)) { 
-      MessageBox(nullptr, L"Failed creating render target view", L"Error", MB_OK);
-      return false; }
-
-    _pImmediateContext->OMSetRenderTargets(1, &_pRenderTargetView, nullptr);
-
-    // Setup the viewport
-    _vp.Width = (FLOAT)windowWidth;
-    _vp.Height = (FLOAT)windowHeight;
-    _vp.MinDepth = 0.0f;
-    _vp.MaxDepth = 1.0f;
-    _vp.TopLeftX = 0;
-    _vp.TopLeftY = 0;
-    _pImmediateContext->RSSetViewports(1, &_vp);
-
-    // Compile the vertex shader
-    ID3DBlob* pVSBlob = nullptr;
-    hr = compileShaderFile(L"shader-types.fxh", "VS", "vs_4_0", &pVSBlob);
-    if( FAILED( hr ) )
-    {
-        MessageBox(nullptr, L"The FXH file cannot be compiled.  Please run this executable from the directory that contains the FX file.", L"Error", MB_OK);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"Failed to create D3D11 device and swap chain.", L"Error", MB_ICONERROR | MB_OK);
         return false;
-    }
-
-	// Create the vertex shader
-	hr = _pd3dDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &_pVertexShader);
-	if(FAILED(hr))
-	{	
-		pVSBlob->Release();
-        MessageBox(nullptr, L"Can't create vertex shader.", L"Error", MB_OK);
-        return false;
-	}
-
-    // Define the input layout
-    D3D11_INPUT_ELEMENT_DESC layout[] =
-    {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-    };
-	UINT numElements = ARRAYSIZE(layout);
-
-    // Create the input layout
-	hr = _pd3dDevice->CreateInputLayout(layout, numElements, pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &_pVertexLayout);
-	pVSBlob->Release();
-	if(FAILED(hr)) {
-        MessageBox(nullptr, L"Can't create input layer.", L"Error", MB_OK);
-        return false;
-  }
-
-    // Set the input layout
-    _pImmediateContext->IASetInputLayout(_pVertexLayout);
-
-	// Compile the pixel shader
-	ID3DBlob* pPSBlob = nullptr;
-    hr = compileShaderFile(L"shader-types.fxh", "PS", "ps_4_0", &pPSBlob);
-    if(FAILED(hr))
-    {
-        MessageBox(nullptr, L"The FXH file cannot be compiled.  Please run this executable from the directory that contains the FXH file.", L"Error", MB_OK);
-        return false;
-    }
-
-	// Create the pixel shader
-	hr = _pd3dDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &_pPixelShader);
-	pPSBlob->Release();
-    if(FAILED(hr) ) {
-        MessageBox(nullptr, L"Can't create pixel shader.", L"Error", MB_OK);
-        return false;
-    }
-
-    // Create vertex buffer
-    SimpleVertex vertices[] =
-    {
-        DirectX::XMFLOAT3(0.0f, 0.5f, 0.5f),
-        DirectX::XMFLOAT3(0.5f, -0.5f, 0.5f),
-        DirectX::XMFLOAT3(-0.5f, -0.5f, 0.5f),
-    };
-
-    D3D11_BUFFER_DESC bd = {};
-    bd.Usage = D3D11_USAGE_DEFAULT;
-    bd.ByteWidth = sizeof(SimpleVertex) * 3;
-    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.CPUAccessFlags = 0;
-
-    D3D11_SUBRESOURCE_DATA InitData = {};
-    InitData.pSysMem = vertices;
-    hr = _pd3dDevice->CreateBuffer(&bd, &InitData, &_pVertexBuffer);
-    if( FAILED(hr)) {
-        MessageBox(nullptr, L"Can't create buffer.", L"Error", MB_OK);
-        return false;
-    }
-
-    // Set vertex buffer
-    UINT stride = sizeof(SimpleVertex);
-    UINT offset = 0;
-    _pImmediateContext->IASetVertexBuffers(0, 1, &_pVertexBuffer, &stride, &offset);
-
-    // Set primitive topology
-    _pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
+    } 
+    
     return true;
 }
 
-auto D3D11Device::destroyDevice(void) -> void {
+auto D3D11Device::createRenderTarget(u32 width, u32 height) -> bool {
 
-  if(_pImmediateContext) _pImmediateContext->ClearState();
+  ComPtr<ID3D11Texture2D> textureBuffer;
+  HRESULT hr = _pSwapChain->GetBuffer(0, IID_PPV_ARGS(&textureBuffer));
+  if(FAILED(hr)) {
+    MessageBox(nullptr, L"Failed getting buffer for render target.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
 
-  if(_pRenderTargetView) _pRenderTargetView->Release();
-  if(_pSwapChain1) _pSwapChain1->Release();
-  if(_pSwapChain) _pSwapChain->Release();
-  if(_pImmediateContext1) _pImmediateContext1->Release();
-  if(_pImmediateContext) _pImmediateContext->Release();
-  if(_pd3dDevice1) _pd3dDevice1->Release();
-  if(_pd3dDevice) _pd3dDevice->Release();
+  hr = _pDevice->CreateRenderTargetView(textureBuffer.Get(), nullptr, &_pRenderTargetView);
+  if(FAILED(hr)) {
+    MessageBox(nullptr, L"Failed creating render target view.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+  
+  D3D11_VIEWPORT vp = {};
+  vp.TopLeftX = 0;
+  vp.TopLeftY = 0;
+  vp.Width = static_cast<FLOAT>(width);
+  vp.Height = static_cast<FLOAT>(height);
+  vp.MinDepth = 0.0f;
+  vp.MaxDepth = 1.0f;
+  _pDeviceContext->RSSetViewports(1, &vp);
 
-  if(_pVertexBuffer) _pVertexBuffer->Release();
-  if(_pVertexLayout) _pVertexLayout->Release();
-  if(_pVertexShader) _pVertexShader->Release();
-  if(_pPixelShader) _pPixelShader->Release();
+  return true;
 }
 
-auto D3D11Device::render(void) -> bool {
-    FLOAT colorRGBABlack[] = {1.0f, 1.0f, 1.0f, 1.0f};
-    _pImmediateContext->ClearRenderTargetView(_pRenderTargetView, colorRGBABlack);
+auto D3D11Device::compileShaders(void) -> bool {
 
-    // Render a triangle
-	_pImmediateContext->VSSetShader(_pVertexShader, nullptr, 0);
-	_pImmediateContext->PSSetShader(_pPixelShader, nullptr, 0);
-    _pImmediateContext->Draw(3, 0);
+  // Simple vertex shader + pixel shader. Vertex shader passes UV; pixel shader samples a texture.
+  const char* pVSSrc =
+    "struct VSInput { float3 pos : POSITION; float2 uv : TEXCOORD0; };"
+    "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };"
+    "PSInput main(VSInput vin) { PSInput o; o.pos = float4(vin.pos, 1.0); o.uv = vin.uv; return o; }";
 
-    // Present the information rendered to the back buffer to the front buffer (the screen)
-    _pSwapChain->Present(0, 0);
+  const char* pPSSrc =
+    "Texture2D tex0 : register(t0);"
+    "SamplerState samp : register(s0);"
+    "struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };"
+    "float4 main(PSInput IN) : SV_TARGET { return tex0.Sample(samp, IN.uv); }";
 
-       return true; //Fix me
+  ComPtr<ID3DBlob> pVSBlob; 
+  ComPtr<ID3DBlob> pPSBlob; 
+  ComPtr<ID3DBlob> pErrBlob;
+
+  HRESULT hr = D3DCompile(pVSSrc, strlen(pVSSrc), nullptr, nullptr, nullptr, "main", "vs_4_0", 0, 0, &pVSBlob, &pErrBlob);
+  if (FAILED(hr)) {
+    if (pErrBlob) OutputDebugStringA((char*)pErrBlob->GetBufferPointer());
+    MessageBox(nullptr, L"Vertex shader compile failed.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  hr = D3DCompile(pPSSrc, strlen(pPSSrc), nullptr, nullptr, nullptr, "main", "ps_4_0", 0, 0, &pPSBlob, &pErrBlob);
+  if (FAILED(hr)) {
+    if (pErrBlob) OutputDebugStringA((char*)pErrBlob->GetBufferPointer());
+    MessageBox(nullptr, L"Pixel shader compile failed.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  hr = _pDevice->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &_pVertexShader);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create vertex shader.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  hr = _pDevice->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &_pPixelShader);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create pixel shader.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  // Input layout (position, uv)
+  D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
+  {
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, x), D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, offsetof(Vertex, u), D3D11_INPUT_PER_VERTEX_DATA, 0 },
+  };
+
+  hr = _pDevice->CreateInputLayout(layoutDesc, _countof(layoutDesc), pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), &_pInputLayout);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create input layout.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+  
+  return true;
 }
 
-auto D3D11Device::compileShaderFile(const WCHAR* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut) -> HRESULT {
-    HRESULT hr = S_OK;
-    DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+auto D3D11Device::createGeometry(void) -> bool {
+ 
+  Vertex vertices[] =
+  {
+    // x, y, z,    u, v
+    { -1.0f,  1.0f, 0.0f,  0.0f, 0.0f }, // TL
+    {  1.0f,  1.0f, 0.0f,  1.0f, 0.0f }, // TR
+    {  1.0f, -1.0f, 0.0f,  1.0f, 1.0f }, // BR
+    { -1.0f, -1.0f, 0.0f,  0.0f, 1.0f }, // BL
+  };
 
-    ID3DBlob* pErrorBlob = nullptr;
-    hr = D3DCompileFromFile(szFileName, nullptr, nullptr, szEntryPoint, szShaderModel, 
-        dwShaderFlags, 0, ppBlobOut, &pErrorBlob);
-    if(FAILED(hr))
-    {
-        if(pErrorBlob)
-        {
-            OutputDebugStringA(reinterpret_cast<const char*>(pErrorBlob->GetBufferPointer()));
-            pErrorBlob->Release();
-        }
-        return hr;
-    }
-    if(pErrorBlob) pErrorBlob->Release();
+  uint16_t indices[] = { 0, 1, 2, 0, 2, 3 };
 
-    return S_OK;
+  D3D11_BUFFER_DESC vbDesc = {};
+  vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+  vbDesc.Usage = D3D11_USAGE_IMMUTABLE;
+  vbDesc.ByteWidth = sizeof(vertices);
+
+  D3D11_SUBRESOURCE_DATA vbData = {};
+  vbData.pSysMem = vertices;
+
+  HRESULT hr = _pDevice->CreateBuffer(&vbDesc, &vbData, &_pVertexBuffer);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create vertex buffer.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  D3D11_BUFFER_DESC ibDesc = {};
+  ibDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+  ibDesc.Usage = D3D11_USAGE_IMMUTABLE;
+  ibDesc.ByteWidth = sizeof(indices);
+
+  D3D11_SUBRESOURCE_DATA ibData = {};
+  ibData.pSysMem = indices;
+
+  hr = _pDevice->CreateBuffer(&ibDesc, &ibData, &_pIndexBuffer);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create index buffer.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  return true;
 }
 
-auto D3D11Device::generateSwapChain(HWND context, const u32 windowWidth, const u32 windowHeight) -> HRESULT {
+auto D3D11Device::createSampler() -> bool {
 
-    IDXGIFactory1* dxgiFactory = nullptr;
-    {
-      IDXGIDevice* dxgiDevice = nullptr;
-      hr = _pd3dDevice->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxgiDevice));
-      if(SUCCEEDED(hr)) {
-          IDXGIAdapter* adapter = nullptr;
-          hr = dxgiDevice->GetAdapter(&adapter);
-          if(SUCCEEDED(hr)) {
-              hr = adapter->GetParent(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&dxgiFactory));
-              adapter->Release();
-          }
-          dxgiDevice->Release();
+  D3D11_SAMPLER_DESC sd = {};
+  sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+  sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sd.MinLOD = 0;
+  sd.MaxLOD = D3D11_FLOAT32_MAX;
+
+  HRESULT hr = _pDevice->CreateSamplerState(&sd, &_pSamplerState);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create sampler state.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  } 
+
+  return true;
+}
+
+auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
+  // Create CPU buffer
+  g_CPUBuffer.assign(width * height, 0);
+
+  D3D11_TEXTURE2D_DESC td = {};
+  td.Width = width;
+  td.Height = height;
+  td.MipLevels = 1;
+  td.ArraySize = 1;
+  td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  td.SampleDesc.Count = 1;
+  td.Usage = D3D11_USAGE_DYNAMIC;
+  td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+  td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+  td.MiscFlags = 0;
+
+  D3D11_SUBRESOURCE_DATA initData = {};
+  initData.pSysMem = g_CPUBuffer.data();
+  initData.SysMemPitch = width * 4;
+
+  ComPtr<ID3D11Texture2D> tex;
+  HRESULT hr = _pDevice->CreateTexture2D(&td, nullptr, &tex);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create texture.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
+  srvd.Format = td.Format;
+  srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+  srvd.Texture2D.MostDetailedMip = 0;
+  srvd.Texture2D.MipLevels = 1;
+
+  hr = _pDevice->CreateShaderResourceView(tex.Get(), &srvd, &_pTextureSRV);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create shader resource view.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  } 
+  
+  return true;
+}
+
+auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height, float seconds) -> bool {
+    // Simple moving gradient/ripple pattern
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        float fx = (float)x / width;
+        float fy = (float)y / height;
+        float value = 0.5f + 0.5f * sinf((fx + seconds) * 10.0f) * cosf((fy + seconds) * 6.0f);
+        uint8_t r = (uint8_t)(value * 255.0f);
+        uint8_t g = (uint8_t)((1.0f - value) * 255.0f);
+        uint8_t b = (uint8_t)((0.5f + 0.5f * sinf(seconds + fx * 10.0f)) * 255.0f);
+        uint8_t a = 255;
+        g_CPUBuffer[y * _WIN32 + x] = (a << 24) | (b << 16) | (g << 8) | (r);
       }
     }
 
-    if(FAILED(hr)) { 
-      MessageBox(nullptr, L"Swap chain step 1 failed", L"Error", MB_OK);
-      return hr; 
-    }
+    // Map the underlying texture and copy rows
+    // Acquire the texture resource from the SRV
+    ComPtr<ID3D11Resource> texRes;
+    _pTextureSRV->GetResource(&texRes);
 
-    // Swap chain creation
-    IDXGIFactory2* dxgiFactory2 = nullptr;
-    hr = dxgiFactory->QueryInterface(__uuidof(IDXGIFactory2), reinterpret_cast<void**>(&dxgiFactory2));
-    if(dxgiFactory2) {
-        // DirectX 11.1 or later
-        hr = _pd3dDevice->QueryInterface(__uuidof(ID3D11Device1), reinterpret_cast<void**>(&_pd3dDevice1));
-        if(SUCCEEDED(hr)) {
-            (void)_pImmediateContext->QueryInterface(__uuidof(ID3D11DeviceContext1), reinterpret_cast<void**>(&_pImmediateContext1));
-        }
+    ComPtr<ID3D11Texture2D> tex;
+    texRes.As(&tex);
 
-        DXGI_SWAP_CHAIN_DESC1 sd = {};
-        sd.Width = windowWidth;
-        sd.Height = windowHeight;
-        sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        sd.SampleDesc.Count = 1;
-        sd.SampleDesc.Quality = 0;
-        sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        sd.BufferCount = 1;
-
-        hr = dxgiFactory2->CreateSwapChainForHwnd(_pd3dDevice, context, &sd, nullptr, nullptr, &_pSwapChain1);
-        if(SUCCEEDED(hr)) {
-            hr = _pSwapChain1->QueryInterface(__uuidof(IDXGISwapChain), reinterpret_cast<void**>(&_pSwapChain));
-        }
-
-        dxgiFactory2->Release();
-    } else {
-        // DirectX 11.0 systems
-        DXGI_SWAP_CHAIN_DESC scd = {};
-        scd.BufferCount = 1;
-        scd.BufferDesc.Width = windowWidth;
-        scd.BufferDesc.Height = windowHeight;
-        scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        scd.BufferDesc.RefreshRate.Numerator = 60;
-        scd.BufferDesc.RefreshRate.Denominator = 1;
-        scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        scd.OutputWindow = context;
-        scd.SampleDesc.Count = 1;
-        scd.SampleDesc.Quality = 0;
-        scd.Windowed = TRUE;
-
-        hr = dxgiFactory->CreateSwapChain(_pd3dDevice, &scd, &_pSwapChain);
-    }
-
-     // Full-screen swapchains not implemented yet, so no ALT+ENTER for now
-    dxgiFactory->MakeWindowAssociation(context, DXGI_MWA_NO_ALT_ENTER);
-    dxgiFactory->Release();
-
-    return hr;
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    HRESULT hr = _pDeviceContext->Map(tex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to map texture.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
   }
+
+    uint8_t* dest = reinterpret_cast<uint8_t*>(mapped.pData);
+    uint8_t* src = reinterpret_cast<uint8_t*>(g_CPUBuffer.data());
+    for (int y = 0; y < height; ++y)
+    {
+        memcpy(dest + y * mapped.RowPitch, src + y * width * 4, width * 4);
+    }
+
+    _pDeviceContext->Unmap(tex.Get(), 0);
+    return true;
+}
+
+auto D3D11Device::render(void) -> void {
+  // Clear RTV (not strictly necessary if rendering full-screen quad)
+  //float colorRGBABlack[] = {1.0f, 1.0f, 1.0f, 1.0f};
+  float colorRGBABlack[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+  _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
+
+  // IA
+  UINT stride = sizeof(Vertex);
+  UINT offset = 0;
+  _pDeviceContext->IASetVertexBuffers(0, 1, _pVertexBuffer.GetAddressOf(), &stride, &offset);
+  _pDeviceContext->IASetIndexBuffer(_pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+  _pDeviceContext->IASetInputLayout(_pInputLayout.Get());
+  _pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+  // VS/PS
+  _pDeviceContext->VSSetShader(_pVertexShader.Get(), nullptr, 0);
+  _pDeviceContext->PSSetShader(_pPixelShader.Get(), nullptr, 0);
+
+  // SRV/Sampler
+  ID3D11ShaderResourceView* srvs[] = { _pTextureSRV.Get() };
+  _pDeviceContext->PSSetShaderResources(0, 1, srvs);
+  ID3D11SamplerState* samplers[] = { _pSamplerState.Get() };
+  _pDeviceContext->PSSetSamplers(0, 1, samplers);
+
+  // Draw
+  _pDeviceContext->OMSetRenderTargets(1, _pRenderTargetView.GetAddressOf(), nullptr);
+  _pDeviceContext->DrawIndexed(6, 0, 0);
+
+  // Present
+  _pSwapChain->Present(0, 0);
+}
