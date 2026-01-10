@@ -95,18 +95,6 @@ private:
     session.leadIn.end = -1;
     s32 lbaFileBase = 0;
 
-    // add 2 sec pregap to 1st track
-    if(!cuesheet->files[0].tracks[0].pregap)
-      cuesheet->files[0].tracks[0].pregap = Track1Pregap;
-    else
-      cuesheet->files[0].tracks[0].pregap = Track1Pregap + cuesheet->files[0].tracks[0].pregap();
-
-    if(cuesheet->files[0].tracks[0].indices[0].number == 1) {
-      session.tracks[1].indices[0].lba = 0;
-      session.tracks[1].indices[0].end =
-          cuesheet->files[0].tracks[0].pregap() + cuesheet->files[0].tracks[0].indices[0].lba - 1;
-    }
-
     s32 lbaIndex = 0;
     for(auto& file : cuesheet->files) {
       for(auto& track : file.tracks) {
@@ -136,6 +124,12 @@ private:
     }
     session.leadOut.lba = lbaFileBase;
     session.leadOut.end = lbaFileBase + LeadOutSectors - 1;
+
+    // Ensure track 1 has index 0 defined (standard 2s pregap on disc)
+    if(auto& t1 = session.tracks[1]; t1 && t1.indices[1] && !t1.indices[0]) {
+      t1.indices[0].lba = t1.indices[1].lba - Track1Pregap;
+      t1.indices[0].end = t1.indices[1].lba - 1;
+    }
 
     // determine track and index ranges
     session.firstTrack = 0xff;
@@ -241,7 +235,7 @@ private:
         }
         if(track.postgap) lbaFileBase += track.postgap();
       }
-      lbaFileBase += file.tracks.back().indices.back().end + 1;
+      lbaFileBase += file.sectorCount();
     }
     _loadOffset = _image.size();
 
@@ -332,10 +326,8 @@ private:
   }
 #endif
 
-private:
-  void loadSub(const string& location, const Decode::ZIP* archive, const Decode::ZIP::File* compressedFile, const CD::Session& session) {
+  void loadSub(const string& location, const Decode::ZIP* archive, const Decode::ZIP::File* compressedFile, CD::Session& session) {
     auto subchannel = session.encode(LeadInSectors + session.leadOut.end + 1);
-
     if (archive != nullptr) {
       if (compressedFile != nullptr) {
         auto rawDataBuffer = archive->extract(*compressedFile);
@@ -364,7 +356,7 @@ private:
   atomic<u64> _loadOffset = 0;
   thread _thread;
   std::unique_ptr<Decode::ZIP> _archive;
-
+public:
   static constexpr s32 LeadInSectors  = 7500;
   static constexpr s32 Track1Pregap   =  150;
   static constexpr s32 LeadOutSectors = 6750;

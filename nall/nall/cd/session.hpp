@@ -46,6 +46,14 @@ struct MSF {
     if(!operator bool()) return "??:??:??";
     return {pad(minute, 2, '0'), ":", pad(second, 2, '0'), ":", pad(frame, 2, '0')};
   }
+
+  static auto fromAbsoluteLBA(s32 lba) -> MSF {
+    return fromLBA(lba + 150);
+  }
+
+  auto toAbsoluteLBA() const -> s32 {
+    return toLBA() - 150;
+  }
 };
 
 struct Index {
@@ -177,7 +185,7 @@ struct Session {
         q[4] = BCD::encode(msf.second);
         q[5] = BCD::encode(msf.frame);
         q[6] = 0x00;
-        msf = MSF(track.indices[1].lba);
+        msf = MSF::fromAbsoluteLBA(track.indices[1].lba);
         q[7] = BCD::encode(msf.minute);
         q[8] = BCD::encode(msf.second);
         q[9] = BCD::encode(msf.frame);
@@ -239,7 +247,7 @@ struct Session {
         q[4] = BCD::encode(msf.second);
         q[5] = BCD::encode(msf.frame);
         q[6] = 0x00;
-        msf = MSF(leadOut.lba);
+        msf = MSF::fromAbsoluteLBA(leadOut.lba);
         q[7] = BCD::encode(msf.minute);
         q[8] = BCD::encode(msf.second);
         q[9] = BCD::encode(msf.frame);
@@ -271,13 +279,13 @@ struct Session {
           q[1] = BCD::encode(trackID);
           q[2] = BCD::encode(indexID);
           auto msf = indexID == 0
-          ? MSF(track.indices[0].end - lba)
-          : MSF(lba - track.indices[1].lba);
+            ? MSF(track.indices[1].lba - lba)
+            : MSF(lba - track.indices[1].lba);
           q[3] = BCD::encode(msf.minute);
           q[4] = BCD::encode(msf.second);
           q[5] = BCD::encode(msf.frame);
           q[6] = 0x00;
-          msf = MSF(lba);
+          msf = MSF::fromAbsoluteLBA(lba);
           q[7] = BCD::encode(msf.minute);
           q[8] = BCD::encode(msf.second);
           q[9] = BCD::encode(msf.frame);
@@ -319,7 +327,7 @@ struct Session {
       q[4] = BCD::encode(msf.second);
       q[5] = BCD::encode(msf.frame);
       q[6] = 0x00;
-      msf = MSF(leadOut.lba + lba);
+      msf = MSF::fromAbsoluteLBA(leadOut.lba + lba);
       q[7] = BCD::encode(msf.minute);
       q[8] = BCD::encode(msf.second);
       q[9] = BCD::encode(msf.frame);
@@ -388,7 +396,7 @@ struct Session {
       if(trackID <=  99) {  //00-99
         auto& track = tracks[trackID];
         track.control = control;
-        track.indices[1].lba = MSF::fromBCD(q[7], q[8], q[9]).toLBA();
+        track.indices[1].lba = MSF::fromBCD(q[7], q[8], q[9]).toAbsoluteLBA();
       }
 
       if(trackID == 100) {  //a0
@@ -400,7 +408,7 @@ struct Session {
       }
 
       if(trackID == 102) {  //a2
-        leadOut.lba = MSF::fromBCD(q[7], q[8], q[9]).toLBA();
+        leadOut.lba = MSF::fromBCD(q[7], q[8], q[9]).toAbsoluteLBA();
       }
     }
     if(leadOut.lba == InvalidLBA) return false;
@@ -426,7 +434,7 @@ struct Session {
       auto& index = track.indices[indexID];
       if(index) continue;   //index already decoded?
 
-      index.lba = MSF::fromBCD(q[7], q[8], q[9]).toLBA();
+      index.lba = MSF::fromBCD(q[7], q[8], q[9]).toAbsoluteLBA();
     }
 
     synchronize(leadOutSectors);
