@@ -1,4 +1,5 @@
 #if defined(Hiro_Window)
+#include <dwmapi.h>
 
 namespace hiro {
 
@@ -40,6 +41,16 @@ auto pWindow::construct() -> void {
   SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)&reference);
   setDroppable(state().droppable);
   setGeometry({128, 128, 256, 256});
+
+  //disable rounded window corners on Windows 11 so all pixels will be available when status bar is disabled
+  const DWM_WINDOW_CORNER_PREFERENCE winCornerPref = DWMWCP_DONOTROUND;
+  DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &winCornerPref, sizeof(winCornerPref));
+  //enable dark theme support
+  BOOL bUseDarkMode = TRUE;
+  DwmSetWindowAttribute(hwnd, /*20*/ DWMWA_USE_IMMERSIVE_DARK_MODE, &bUseDarkMode, sizeof(bUseDarkMode));
+  /*COLORREF DARK_COLOR = 0x00505050;
+  DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR | DWMWA_CAPTION_COLOR, &DARK_COLOR, sizeof(DARK_COLOR));
+  DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &DARK_COLOR, sizeof(DARK_COLOR));*/
 
   windows.push_back(self().instance);
 }
