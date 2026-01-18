@@ -3,6 +3,7 @@ struct GameBrowserEntry {
   string name;
   string board;
   string path;
+  string ext;
 };
 
 struct GameBrowserWindow : Window {

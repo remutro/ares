@@ -45,10 +45,17 @@ auto GameBrowserWindow::show(std::shared_ptr<Emulator> emulator) -> void {
     auto path = settings.paths.arcadeRoms;
     if(!path) path = {mia::homeLocation(), "Arcade"};
 
-    path = {path, "/", node["name"].string(), ".zip"};
+    string pathZip = {path, "/", node["name"].string(), ".zip"};
 
-    if(inode::exists(path)) {
-      games.push_back({node["title"].string(), node["name"].string(), node["board"].string(), path});
+    if(inode::exists(pathZip)) {
+      games.push_back({node["title"].string(), node["name"].string(), node["board"].string(), pathZip, "zip"});
+    }
+
+    if(emulator->name.find("Neo Geo")) {
+      string pathNeo = {path, "/", node["name"].string(), ".neo"};
+      if(inode::exists(pathNeo)) {
+        games.push_back({node["title"].string(), node["name"].string(), node["board"].string(), pathNeo, "neo"});
+      }
     }
   }
 
@@ -71,6 +78,7 @@ auto GameBrowserWindow::refresh() -> void {
   gameList.append(TableViewColumn().setText("Game Title").setExpandable());
   gameList.append(TableViewColumn().setText("Board").setExpandable());
   gameList.append(TableViewColumn().setText("MAME Name"));
+  gameList.append(TableViewColumn().setText("File Ext"));
 
   for(auto& game : games) {
     auto searchText = searchInput.text();
@@ -85,6 +93,7 @@ auto GameBrowserWindow::refresh() -> void {
     item.append(TableViewCell().setText(game.title));
     item.append(TableViewCell().setText(game.board));
     item.append(TableViewCell().setText(game.name));
+    item.append(TableViewCell().setText(game.ext));
   }
 
   gameList.resizeColumns();

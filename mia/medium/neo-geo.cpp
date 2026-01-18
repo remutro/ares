@@ -4,8 +4,11 @@
 
 struct NeoGeo : Mame {
   auto name() -> string override { return "Neo Geo"; }
-  auto extensions() -> std::vector<string> override { return {"ng"}; }
+  auto extensions() -> std::vector<string> override { return {"neo"}; }
   auto read(string location, string match) -> std::vector<u8>;
+  auto readNeoFile(const string& location, std::vector<u8>& p, std::vector<u8>& m, std::vector<u8>& c, 
+                   std::vector<u8>& s, std::vector<u8>& vA, std::vector<u8>& vB) -> void;
+  auto readNFRom(const std::vector<u8>& rom, const u32 size, u64& offset, string match) -> std::vector<u8>;
   auto load(string location) -> LoadResult override;
   auto board() -> string;
   auto save(string location) -> bool override;
@@ -34,6 +37,20 @@ struct NeoGeo : Mame {
     u8 *address_16_23_xor2;
     u8 *address_0_7_xor;
   } cmc;
+
+  struct NeoFile
+  {
+    u8 header1, header2, header3, version;
+    u32 PSize, SSize, MSize, V1Size, V2Size, CSize;
+    u32 Year;
+    u32 Genre;
+    u32 Screenshot;
+    u32 NGH;
+    u8 Name[33];
+    u8 Manu[17];
+    u8 Filler[418];
+    u8 Filler2[3584];
+  };
 };
 
 auto NeoGeo::read(string location, string match) -> std::vector<u8> {
@@ -58,6 +75,39 @@ auto NeoGeo::read(string location, string match) -> std::vector<u8> {
   return {};
 }
 
+auto NeoGeo::readNeoFile(const string& location, std::vector<u8>& p, std::vector<u8>& m, std::vector<u8>& c, 
+                         std::vector<u8>& s, std::vector<u8>& vA, std::vector<u8>& vB) -> void {
+  if(!location.iendsWith(".neo")) return;
+
+  if(info) {
+    std::vector<u8> rom = Medium::read(location);
+    if(!rom.empty() && rom.size() > sizeof(NeoFile)) {
+      NeoFile* nf = reinterpret_cast<NeoFile*>(rom.data());
+      if(nf && nf->header1 == 'N' && nf->header2 == 'E' && nf->header3 == 'O' && nf->version == 1) {
+        u64 offset = (u64)sizeof(NeoFile);
+        p =  NeoGeo::readNFRom(rom, nf->PSize,  offset, "program.rom");
+        endianSwap(p, 0, p.size()); // Need to look this up properly
+        if(p.empty()) print("Empty program.rom\n");
+        s =  NeoGeo::readNFRom(rom, nf->SSize,  offset, "static.rom");
+        m =  NeoGeo::readNFRom(rom, nf->MSize,  offset, "music.rom");
+        vA = NeoGeo::readNFRom(rom, nf->V1Size, offset, "voice-a.rom");
+        vB = NeoGeo::readNFRom(rom, nf->V2Size, offset, "voice-b.rom");
+        c =  NeoGeo::readNFRom(rom, nf->CSize,  offset, "character.rom");
+        nf = nullptr;
+      }
+    }
+  }
+}
+
+auto NeoGeo::readNFRom(const std::vector<u8>& rom, const u32 size, u64& offset, string match) -> std::vector<u8> {
+  if(rom.empty() || (offset + size > rom.size())) return {};
+
+  std::vector<u8> output(size);
+  memcpy(&output[0], &rom[offset], size);  
+  offset += size;
+  return output;
+}
+
 auto NeoGeo::load(string location) -> LoadResult {
   std::vector<u8> programROM;    //P ROM (68K CPU program)
   std::vector<u8> musicROM;      //M ROM (Z80 APU program)
@@ -70,16 +120,22 @@ auto NeoGeo::load(string location) -> LoadResult {
   if(!foundDatabase) return { databaseNotFound, "Neo Geo.bml" };
   this->info = BML::unserialize(manifestDatabaseArcade(Medium::name(location)));
 
-  if(file::exists(location)) {
-    programROM   = NeoGeo::read(location, "program.rom");
-    musicROM     = NeoGeo::read(location, "music.rom");
-    characterROM = NeoGeo::read(location, "character.rom");
-    staticROM    = NeoGeo::read(location, "static.rom");
-    voiceAROM    = NeoGeo::read(location, "voice-a.rom");
-    voiceBROM    = NeoGeo::read(location, "voice-b.rom");
+  if(location.iendsWith(".zip")) {
+    if(file::exists(location)) {
+      programROM   = NeoGeo::read(location, "program.rom");
+      musicROM     = NeoGeo::read(location, "music.rom");
+      characterROM = NeoGeo::read(location, "character.rom");
+      staticROM    = NeoGeo::read(location, "static.rom");
+      voiceAROM    = NeoGeo::read(location, "voice-a.rom");
+      voiceBROM    = NeoGeo::read(location, "voice-b.rom");
+    }
+  } else if(location.iendsWith(".neo")) {
+    if(file::exists(location)) {
+      NeoGeo::readNeoFile(location, programROM, musicROM, characterROM, staticROM, voiceAROM, voiceBROM);
+    }
   }
   
-  string invalidRomInfo = "Ensure your ROM is in a MAME-compatible .zip format.";
+  string invalidRomInfo = "\nEnsure your ROM is in a MAME-compatible .zip or NeoFile-compatible .neo format.";
 
   if(programROM.empty()  ) return { invalidROM, invalidRomInfo };
   if(musicROM.empty()    ) return { invalidROM, invalidRomInfo };
