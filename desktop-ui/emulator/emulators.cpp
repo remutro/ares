@@ -162,7 +162,7 @@ namespace ares::ZXSpectrum {
 #include "arcade.cpp"
 
 auto Emulator::construct() -> void {
-  emulators.push_back(std::make_shared<Arcade>());
+  if(Arcade::available()) emulators.push_back(std::make_shared<Arcade>());
 
   #ifdef CORE_A26
   emulators.push_back(std::make_shared<Atari2600>());
@@ -258,4 +258,8 @@ auto Emulator::construct() -> void {
   emulators.push_back(std::make_shared<ZXSpectrum>());
   emulators.push_back(std::make_shared<ZXSpectrum128>());
   #endif
+
+  std::sort(emulators.begin(), emulators.end(), [](std::shared_ptr<Emulator> a, std::shared_ptr<Emulator> b) { 
+    return (a->name < b->name); 
+  });
 }

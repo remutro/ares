@@ -40,11 +40,14 @@ Usage: ./ares [options] game(s)
   --help                 Displays available options and exit
   --terminal             Create new terminal window (Windows only)
   --fullscreen           Start in full screen mode
+  --pseudofullscreen     Start in pseudo full screen mode
   --system system        Specify the system name
   --shader shader        Specify a slang shader to load (requires OpenGL or Metal)
   --setting name=value   Specify a value for a setting
   --dump-all-settings    Show a list of all existing settings and exit
   --no-file-prompt       Do not prompt to load (optional) additional roms (eg: 64DD)
+  --settings-file path   Specify a settings file override (settings.bml)
+  --save-state slot      Specify a save state slot to load (1-9)
 ```
 
 The --system option is useful when the system type cannot be auto-detected.

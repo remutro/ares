@@ -1,4 +1,4 @@
-struct Disc : Thread, Memory::Interface {
+struct Disc : Memory::Interface {
   Node::Object node;
   Node::Port tray;
   Node::Peripheral cd;
@@ -41,6 +41,7 @@ struct Disc : Thread, Memory::Interface {
   auto power(bool reset) -> void;
 
   //io.cpp
+  auto canReadDMA() -> bool;
   auto readDMA() -> u32;
   auto readByte(u32 address) -> u32;
   auto readHalf(u32 address) -> u32;
@@ -204,6 +205,7 @@ struct Disc : Thread, Memory::Interface {
   struct IRQ {
     //irq.cpp
     auto poll() -> void;
+    auto pending() -> bool;
 
     struct Source {
       n1 enable;

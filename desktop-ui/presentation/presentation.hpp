@@ -11,6 +11,7 @@ struct Presentation : Window {
   auto refreshSystemMenu() -> void;
 
   std::vector<string> shaderDirectories;
+  static inline bool shaderArgApplied = false;
 
   MenuBar menuBar{this};
     Menu loadMenu{&menuBar};
@@ -78,6 +79,7 @@ struct Presentation : Window {
       MenuItem streamManagerAction{&toolsMenu};
       MenuItem propertiesViewerAction{&toolsMenu};
       MenuItem traceLoggerAction{&toolsMenu};
+      MenuItem tapeViewerAction{&toolsMenu};
     Menu helpMenu{&menuBar};
       MenuItem aboutAction{&helpMenu};
 

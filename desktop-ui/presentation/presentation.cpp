@@ -222,10 +222,14 @@ Presentation::Presentation() {
   traceLoggerAction.setText("Tracer").setIcon(Icon::Emblem::Script).onActivate([&] {
     toolsWindow.show("Tracer");
   });
+  tapeViewerAction.setText("Tape").setIcon(Icon::Device::Tape).onActivate([&] {
+    toolsWindow.show("Tape");
+  });
 
   helpMenu.setText("Help");
   aboutAction.setText("About" ELLIPSIS).setIcon(Icon::Prompt::Question).onActivate([&] {
     multiFactorImage logo(Resource::Ares::Logo1x, Resource::Ares::Logo2x);
+    Program::Guard guard;
     AboutDialog()
     .setName(ares::Name)
     .setLogo(logo)
@@ -517,7 +521,7 @@ auto Presentation::refreshSystemMenu() -> void {
 
   //Build the Dip Switch menu if the emulator core has a DIP Switches node
   if(auto dipSwitches = ares::Node::find<ares::Node::Object>(emulator->root, "DIP Switches")) {
-    Menu dipSwitchMenu;
+    Menu dipSwitchMenu{&systemMenu};
     dipSwitchMenu.setText("DIP Switches");
     
     for(auto dip : ares::Node::enumerate<ares::Node::Setting::Boolean>(emulator->root)) {
@@ -547,8 +551,6 @@ auto Presentation::refreshSystemMenu() -> void {
         });
       }
     }
-
-    if(dipSwitchMenu.actionCount() > 0) systemMenu.append(dipSwitchMenu);
   }
   if(systemMenu.actionCount() > 0) systemMenu.append(MenuSeparator());
 
@@ -727,16 +729,18 @@ auto Presentation::loadShaders() -> void {
     }
   }
 
-  if(program.startShader) {
+  if(program.startShader && !shaderArgApplied) {
+    shaderArgApplied = true;
     string existingShader = settings.video.shader;
 
+    program.startShader.transform("\\", "/");
     if(!program.startShader.imatch("None")) {
-      settings.video.shader = {location, program.startShader, ".slangp"};
+      settings.video.shader = {program.startShader, ".slangp"};
     } else {
       settings.video.shader = program.startShader;
     }
 
-    if(inode::exists(settings.video.shader)) {
+    if(inode::exists({location, settings.video.shader})) {
       ruby::video.setShader({location, settings.video.shader});
       loadShaders();
     } else if(settings.video.shader.imatch("None")) {
@@ -746,7 +750,8 @@ auto Presentation::loadShaders() -> void {
       hiro::MessageDialog()
           .setTitle("Warning")
           .setAlignment(hiro::Alignment::Center)
-          .setText({ "Requested shader not found: ", settings.video.shader , "\nUsing existing defined shader: ", existingShader })
+          .setText({"Requested shader not found: ", location, settings.video.shader , 
+            "\nUsing existing defined shader: ", location, existingShader})
           .warning();
       settings.video.shader = existingShader;
     }

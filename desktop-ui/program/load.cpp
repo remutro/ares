@@ -64,7 +64,7 @@ auto Program::load(string location) -> bool {
   runAheadUpdate();
   presentation.loadEmulator();
   presentation.showIcon(false);
-  if(settings.video.adaptiveSizing) presentation.resizeWindow();
+  if(settings.video.adaptiveSizing  && !startPseudoFullScreen) presentation.resizeWindow();
   manifestViewer.reload();
   cheatEditor.reload();
   memoryEditor.reload();
@@ -72,6 +72,7 @@ auto Program::load(string location) -> bool {
   streamManager.reload();
   propertiesViewer.reload();
   traceLogger.reload();
+  tapeViewer.reload();
   state = {};  //reset hotkey state slot to 1
   if(settings.boot.debugger) {
     pause(true);
@@ -102,6 +103,12 @@ auto Program::load(string location) -> bool {
 
   configuration = emulator->root->attribute("configuration");
 
+  if(program.startSaveStateSlot) {
+    if(stateLoad(program.startSaveStateSlot.integer())) {
+      state.slot = program.startSaveStateSlot.integer();
+    }
+  }
+
   return true;
 }
 
@@ -130,6 +137,7 @@ auto Program::unload() -> void {
   streamManager.unload();
   propertiesViewer.unload();
   traceLogger.unload();
+  tapeViewer.unload();
   message.text = "";
   configuration = "";
   ruby::video.clear();

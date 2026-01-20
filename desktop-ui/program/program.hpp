@@ -57,11 +57,13 @@ struct Program : ares::Platform {
   auto inputDriverUpdate() -> void;
 
   bool startFullScreen = false;
+  bool startPseudoFullScreen = false;
   std::vector<string> startGameLoad;
   bool noFilePrompt = false;
 
   string startSystem;
   string startShader;
+  string startSaveStateSlot;
 
   std::vector<ares::Node::Video::Screen> screens;
   std::vector<ares::Node::Audio::Stream> streams;
