@@ -100,6 +100,7 @@ auto PlayStation::load() -> LoadResult {
 
   ares::PlayStation::option("Homebrew Mode", settings.general.homebrewMode);
   ares::PlayStation::option("Recompiler", !settings.general.forceInterpreter);
+  ares::PlayStation::option("Texture Mod", settings.playstation.texturemod);
 
   if(!ares::PlayStation::load(root, {"[Sony] PlayStation (", region, ")"})) return otherError;
 

@@ -90,13 +90,26 @@ auto GPU::Render::dither(Point p, Color c) const -> Color {
 }
 
 auto GPU::Render::modulate(Color above, Color below) const -> Color {
-  below.r >>= 3;
-  below.g >>= 3;
-  below.b >>= 3;
+  if(system.textureMod) {
+    above.r = above.r >> 3; above.g = above.g >> 3; above.b = above.b >> 3;
+    below.r = below.r >> 3; below.g = below.g >> 3; below.b = below.b >> 3;
 
-  above.r = std::min(255, ((u16)below.r * (u16)above.r) >> 4);
-  above.g = std::min(255, ((u16)below.g * (u16)above.g) >> 4);
-  above.b = std::min(255, ((u16)below.b * (u16)above.b) >> 4);
+    above.r = std::min(31, ((u16)above.r * (u16)below.r) >> 4);
+    above.g = std::min(31, ((u16)above.g * (u16)below.g) >> 4);
+    above.b = std::min(31, ((u16)above.b * (u16)below.b) >> 4);
+
+    above.r = above.r << 3 | above.r >> 2;
+    above.g = above.g << 3 | above.g >> 2;
+    above.b = above.b << 3 | above.b >> 2;
+  } else {
+    below.r >>= 3;
+    below.g >>= 3;
+    below.b >>= 3;
+
+    above.r = std::min(255, ((u16)below.r * (u16)above.r) >> 4);
+    above.g = std::min(255, ((u16)below.g * (u16)above.g) >> 4);
+    above.b = std::min(255, ((u16)below.b * (u16)above.b) >> 4);
+  }
 
   return above;
 }

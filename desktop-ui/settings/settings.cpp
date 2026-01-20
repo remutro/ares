@@ -132,6 +132,8 @@ auto Settings::process(bool load) -> void {
 
   bind(boolean, "MegaDrive/TMSS", megadrive.tmss);
 
+  bind(boolean, "PlayStation/TextureMod", playstation.texturemod);
+
   for(u32 index : range(9)) {
     string name = {"Recent/Game-", 1 + index};
     bind(string, name, recent.game[index]);

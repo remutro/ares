@@ -3,6 +3,7 @@ struct System {
   Node::Setting::Boolean fastBoot;
   VFS::Pak pak;
   bool homebrewMode = false;
+  bool textureMod = false;
 
   enum class Region : u32 { NTSCJ, NTSCU, PAL };
 

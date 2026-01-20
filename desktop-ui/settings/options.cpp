@@ -105,4 +105,11 @@ auto OptionSettings::construct() -> void {
   megaDriveTmssLayout.setAlignment(1).setPadding(12_sx, 0);
     megaDriveTmssHint.setText("Enable/Disable the TMSS Boot Rom at system initialization").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 
+  playStationSettingsLabel.setText("PlayStation Settings").setFont(Font().setBold());
+
+  playStationModulationOption.setText("Texture Modulation").setChecked(settings.playstation.texturemod).onToggle([&] {
+    settings.playstation.texturemod = playStationModulationOption.checked();
+  });
+  playStationModulationLayout.setAlignment(1).setPadding(12_sx, 0);
+    playStationModulationHint.setText("Scale back to RGB555 before blending/mixing (v1 GPU)").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 }

@@ -19,6 +19,7 @@ auto load(Node::System& node, string name) -> bool {
 
 auto option(string name, string value) -> bool {
   if(name == "Homebrew Mode") system.homebrewMode = value.boolean();
+  if(name == "Texture Mod") system.textureMod = value.boolean();
   return true;
 }
 

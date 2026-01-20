@@ -118,6 +118,10 @@ struct Settings : Markup::Node {
   struct MegaDrive {
     bool tmss = false;
   } megadrive;
+
+  struct PlayStation {
+    bool texturemod = false;
+  } playstation;
 };
 
 struct VideoSettings : VerticalLayout {
@@ -289,6 +293,11 @@ struct OptionSettings : VerticalLayout {
     HorizontalLayout megaDriveTmssLayout{this, Size{~0, 0}, 5};
       CheckLabel megaDriveTmssOption{&megaDriveTmssLayout, Size{0, 0}, 5};
       Label megaDriveTmssHint{&megaDriveTmssLayout, Size{0, 0}};
+
+  Label playStationSettingsLabel{this, Size{~0, 0}, 5};
+    HorizontalLayout playStationModulationLayout{this, Size{~0, 0}, 5};
+    CheckLabel playStationModulationOption{&playStationModulationLayout, Size{0, 0}, 5};
+      Label playStationModulationHint{&playStationModulationLayout, Size{0, 0}};
 };
 
 struct FirmwareSettings : VerticalLayout {
