@@ -150,9 +150,9 @@ auto Disc::Debugger::commandEpilogue(u8 operation, maybe<u8> suboperation) -> vo
 auto Disc::Debugger::read(s32 lba) -> void {
   if(!tracer.read->enabled()) return;
 
-  auto [minute, second, frame] = CD::MSF::fromLBA(lba);
-  minute = BCD::encode(minute);
-  second = BCD::encode(second);
-  frame  = BCD::encode(frame);
+  auto msf = CD::MSF::fromLBA(lba);
+  u8 minute = BCD::encode(msf.minute);
+  u8 second = BCD::encode(msf.second);
+  u8 frame  = BCD::encode(msf.frame);
   tracer.read->notify({hex(minute, 2L), ":", hex(second, 2L), ":", hex(frame, 2L)});
 }

@@ -200,8 +200,10 @@ auto Disc::main() -> void {
         }
       }
 
-      auto [aminute, asecond, aframe] = CD::MSF::fromLBA(lba);
-      auto [rminute, rsecond, rframe] = CD::MSF::fromLBA(lba - lbaTrack);
+      auto amsf = CD::MSF::fromABA(CD::LBAtoABA(lba));
+      auto rmsf = CD::MSF::fromLBA(lba - lbaTrack);
+      u8 aminute = amsf.minute, asecond = amsf.second, aframe = amsf.frame;
+      u8 rminute = rmsf.minute, rsecond = rmsf.second, rframe = rmsf.frame;
 
       //sectors  0, 20, 40, 60 report absolute time
       //sectors 10, 30, 50, 70 report relative time

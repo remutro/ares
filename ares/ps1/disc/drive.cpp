@@ -17,8 +17,7 @@ auto Disc::Drive::distance() const -> u32 {
 
 auto Disc::Drive::updateSubQ() -> void {
   u8 qbuf[12];
-  const s32 physical = abs(session->leadIn.lba) + lba.current;
-  self.fd->seek(2448 * physical + 2352 + 12);
+  self.fd->seek(2448ull * (CD::LeadInSectors + CD::LBAtoABA(lba.current)) + 2352 + 12);
   self.fd->read({qbuf, 12});
 
   const u8  adr      = qbuf[0] & 0x0f;
@@ -62,7 +61,7 @@ auto Disc::Drive::clockSector() -> void {
     if(seekType != SeekType::None) {
       const s32 target = lba.request;
 
-      const bool beyondDisc = target < 0 || target > session->leadOut.lba + vfs::cdrom::LeadOutSectors;
+      const bool beyondDisc = target < 0 || target > session->leadOut.lba + CD::LeadOutSectors;
       bool inDataTrack = false;
 
       if(!beyondDisc) {
@@ -76,6 +75,12 @@ auto Disc::Drive::clockSector() -> void {
       const bool ok = (seekType == SeekType::SeekP) ? !beyondDisc : (!beyondDisc && inDataTrack);
 
       if(ok) {
+        //correct for imprecise seek
+        if(pendingOperation == PendingOperation::Play) {
+          lba.current = lba.request;
+          updateSubQ();
+        }
+
         self.ssr.playingCDDA = 0;
 
         if(pendingOperation == PendingOperation::Read) {
@@ -124,7 +129,7 @@ auto Disc::Drive::clockSector() -> void {
 
   if(self.ssr.reading) {
     self.debugger.read(lba.current);
-    self.fd->seek(2448 * (abs(session->leadIn.lba) + lba.current++));
+    self.fd->seek(2448ull * (CD::LeadInSectors + CD::LBAtoABA(lba.current++)));
     self.fd->read({sector.data, 2448});
 
     if(auto trackID = session->inTrack(lba.current)) {

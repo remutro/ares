@@ -204,7 +204,7 @@ auto Disc::commandSetLoc() -> void {
 
   ack();
 
-  drive.lba.request = CD::MSF(minute, second, frame).toAbsoluteLBA();
+  drive.lba.request = CD::MSF(minute, second, frame).toLBA();
   drive.lba.pending = 1;
 }
 
@@ -220,7 +220,7 @@ auto Disc::commandPlay() -> void {
   }
 
   if(trackID && *trackID) {
-    if(auto track = session.track(*trackID)) {
+    if(auto track = session.track(BCD::decode(*trackID))) {
       if(auto index = track->index(1)) {
         drive.lba.request = index->lba;
         drive.lba.pending = 0;
@@ -240,7 +240,7 @@ auto Disc::commandPlay() -> void {
     drive.pendingOperation = Disc::Drive::PendingOperation::Play;
     drive.seekRetries = 0;
     drive.seeking = drive.distance();
-    drive.seekDelay += (3 << drive.mode.speed);
+    drive.seekDelay = 3 << drive.mode.speed;
 
     ack();
     return;
@@ -254,7 +254,7 @@ auto Disc::commandPlay() -> void {
     drive.pendingOperation = Disc::Drive::PendingOperation::Play;
     drive.seekRetries = 0;
     drive.seeking = drive.distance();
-    drive.seekDelay += (3 << drive.mode.speed);;
+    drive.seekDelay = 3 << drive.mode.speed;
     drive.lba.pending = 0;
 
     ack();
@@ -294,7 +294,7 @@ auto Disc::commandReadN() -> void {
     drive.pendingOperation = Drive::PendingOperation::Read;
     drive.seekRetries = 0;
     drive.seeking = drive.distance();
-    drive.seekDelay += (3 << drive.mode.speed);;
+    drive.seekDelay = 3 << drive.mode.speed;
     drive.lba.pending = 0;
 
     ack();
@@ -427,7 +427,7 @@ auto Disc::commandSetMode() -> void {
   n8 data = fifo.parameter.read(0);
 
   if(data.bit(7) != drive.mode.speed) {
-    drive.seekDelay += 80 << drive.mode.speed;
+    drive.seekDelay = 80 << drive.mode.speed;
   }
 
   drive.mode.cdda       = data.bit(0);
@@ -547,12 +547,12 @@ auto Disc::commandGetTD() -> void {
   if(!index) { error(ErrorCode_InvalidParameterValue); return; }
 
   s32 lba = trackID ? index->lba : index->end;
-  auto [minute, second, frame] = CD::MSF::fromAbsoluteLBA(lba);
+  auto msf = CD::MSF::fromABA(CD::LBAtoABA(lba));
 
   queueResponse(ResponseType::Acknowledge, {
     status(),
-    BCD::encode(minute),
-    BCD::encode(second)
+    BCD::encode(msf.minute),
+    BCD::encode(msf.second)
   });
 }
 
@@ -569,7 +569,7 @@ auto Disc::commandSeekL() -> void {
   drive.pendingOperation = Drive::PendingOperation::None;
   drive.seekRetries = 0;
   drive.seeking = drive.distance();
-  drive.seekDelay += (3 << drive.mode.speed);;
+  drive.seekDelay = 3 << drive.mode.speed;
   drive.lba.pending = 0;
 }
 
@@ -586,7 +586,7 @@ auto Disc::commandSeekP() -> void {
   drive.pendingOperation = Drive::PendingOperation::None;
   drive.seekRetries = 0;
   drive.seeking = drive.distance();
-  drive.seekDelay += (3 << drive.mode.speed);;
+  drive.seekDelay = 3 << drive.mode.speed;
   drive.lba.pending = 0;
 }
 
