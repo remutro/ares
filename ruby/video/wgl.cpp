@@ -2,6 +2,9 @@
 
 #define WGL_CONTEXT_MAJOR_VERSION_ARB 0x2091
 #define WGL_CONTEXT_MINOR_VERSION_ARB 0x2092
+#define WGL_CONTEXT_PROFILE_MASK_ARB 0x9126
+#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB 0x1
+#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x2
 
 static LRESULT CALLBACK VideoOpenGL32_WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   if(msg == WM_SYSKEYDOWN && wparam == VK_F4) return false;
@@ -176,11 +179,10 @@ private:
     wglSwapInterval = (BOOL (APIENTRY*)(int))glGetProcAddress("wglSwapIntervalEXT");
 
     if(wglCreateContextAttribs) {
-      s32 attributeList[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 2,
-        0
-      };
+      s32 attributeList[] = { WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+                              WGL_CONTEXT_MINOR_VERSION_ARB, 2,
+                              WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                              0 };
       HGLRC context = wglCreateContextAttribs(_display, 0, attributeList);
       if(context) {
         wglMakeCurrent(nullptr, nullptr);
@@ -189,6 +191,8 @@ private:
       }
     }
 
+    print("\nOpenGL Version: ", (const char*)glGetString(GL_VERSION), ", GLSL: ", (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION),"\n");
+ 
     if(wglSwapInterval) wglSwapInterval(self.blocking);
     _ready = OpenGL::initialize(self.shader);
     releaseContext();
