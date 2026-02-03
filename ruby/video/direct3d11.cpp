@@ -3,8 +3,8 @@
 
 typedef std::unique_ptr<D3D11Device> PD3D11Device ;
 libra_instance_t _libra;
-libra_shader_preset_t _preset = NULL;
-libra_gl_filter_chain_t  _chain = NULL;
+libra_shader_preset_t _preset = nullptr;
+libra_d3d11_filter_chain_t _chain = nullptr;
 
 static LRESULT CALLBACK VideoDirect3D11_WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   if(msg == WM_SYSKEYDOWN && wparam == VK_F4) return false;
@@ -84,7 +84,6 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto acquire(u32*& data, u32& pitch, u32 width, u32 height) -> bool override {
-    
     if(_lost && !recover()) return false;
 
     u32 windowWidth, windowHeight;
@@ -96,20 +95,8 @@ struct VideoDirect3D11 : VideoDriver {
 
     if(!(_device->updateTexturefromBuffer(width, height))) return false;
 
-    pitch = _device->mapped.RowPitch;
-    return data = (u32*)(_device->mapped.pData);
-    
-    /*
-    D3DSURFACE_DESC surfaceDescription;
-    _texture->GetLevelDesc(0, &surfaceDescription);
-    _texture->GetSurfaceLevel(0, &_surface);
-
-    D3DLOCKED_RECT lockedRectangle;
-    _surface->LockRect(&lockedRectangle, 0, D3DLOCK_NOSYSLOCK | D3DLOCK_DISCARD);
-    pitch = lockedRectangle.Pitch;
-    
-    return data = (u32*)lockedRectangle.pBits;
-    */
+    pitch = _device->getMappedResource().RowPitch;
+    return data = (u32*)(_device->getMappedResource().pData);
   }
 
   auto release() -> void override {
@@ -127,22 +114,10 @@ struct VideoDirect3D11 : VideoDriver {
     if(!height) height = _windowHeight;
 
     _device->render();
-
-    /*
-    _device->BeginScene();
-    //center output within window
-    u32 x = (_windowWidth - width) / 2;
-    u32 y = (_windowHeight - height) / 2;
-    setVertex(0, 0, _inputWidth, _inputHeight, _textureWidth, _textureHeight, x, y, width, height);
-    _device->SetTexture(0, _texture);
-    _device->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
-    _device->EndScene();
-
-    if(_device->Present(0, 0, 0, 0) == D3DERR_DEVICELOST) _lost = true;
-    */
   }
 
 private:
+
   auto construct() -> void {
     WNDCLASS windowClass{};
     windowClass.cbClsExtra = 0;
@@ -156,6 +131,8 @@ private:
     windowClass.lpszMenuName = 0;
     windowClass.style = CS_HREDRAW | CS_VREDRAW;
     RegisterClass(&windowClass);
+
+    _device = std::make_unique<D3D11Device>();
   }
 
   auto destruct() -> void {
@@ -211,6 +188,8 @@ private:
 
     _textureWidth = bit::round(max(width, _textureWidth));
     _textureHeight = bit::round(max(height, _textureHeight));
+
+    _device->resizeTextureBuffer(_textureWidth, _textureHeight);
 
 /*
     if(_capabilities.MaxTextureWidth < _textureWidth || _capabilities.MaxTextureWidth < _textureHeight) return;
@@ -312,8 +291,7 @@ private:
     if(!(_device->createTextureAndSRV(_windowWidth, _windowHeight))) { return false; }
   
     _lost = false;
-    //return _ready = recover();
-    return (_ready = true);
+    return _ready = recover();
   }
   
   auto terminate() -> void {
@@ -334,7 +312,7 @@ private:
   bool _exclusive = false;
   bool _lost = true;
 
-  PD3D11Device _device = std::make_unique<D3D11Device>();
+  PD3D11Device _device = nullptr;
   HWND _window = nullptr;
   HWND _context = nullptr;
 

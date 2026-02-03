@@ -42,8 +42,10 @@ endif()
 
 if(librashader_FOUND AND ARES_ENABLE_LIBRASHADER)
   target_enable_feature(ruby "librashader OpenGL runtime" LIBRA_RUNTIME_OPENGL)
+  target_enable_feature(ruby "librashader Direct3D11 runtime" LIBRA_RUNTIME_D3D11)
 else()
   target_compile_definitions(ruby PRIVATE LIBRA_RUNTIME_OPENGL)
+  target_compile_definitions(ruby PRIVATE LIBRA_RUNTIME_D3D11)
 endif()
 
 target_link_libraries(

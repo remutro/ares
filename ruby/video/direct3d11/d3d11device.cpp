@@ -17,7 +17,7 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context, const u32 windowWidth, 
 #endif
 
     D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
-    HRESULT hr = D3D11CreateDeviceAndSwapChain(
+    hr = D3D11CreateDeviceAndSwapChain(
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
         nullptr,
@@ -42,7 +42,7 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context, const u32 windowWidth, 
 auto D3D11Device::createRenderTarget(u32 width, u32 height) -> bool {
 
   ComPtr<ID3D11Texture2D> textureBuffer;
-  HRESULT hr = _pSwapChain->GetBuffer(0, IID_PPV_ARGS(&textureBuffer));
+  hr = _pSwapChain->GetBuffer(0, IID_PPV_ARGS(&textureBuffer));
   if(FAILED(hr)) {
     MessageBox(nullptr, L"Failed getting buffer for render target.", L"Error", MB_ICONERROR | MB_OK);
     return false;
@@ -84,7 +84,7 @@ auto D3D11Device::compileShaders(void) -> bool {
   ComPtr<ID3DBlob> pPSBlob; 
   ComPtr<ID3DBlob> pErrBlob;
 
-  HRESULT hr = D3DCompile(pVSSrc, strlen(pVSSrc), nullptr, nullptr, nullptr, "main", "vs_4_0", 0, 0, &pVSBlob, &pErrBlob);
+  hr = D3DCompile(pVSSrc, strlen(pVSSrc), nullptr, nullptr, nullptr, "main", "vs_4_0", 0, 0, &pVSBlob, &pErrBlob);
   if (FAILED(hr)) {
     if (pErrBlob) OutputDebugStringA((char*)pErrBlob->GetBufferPointer());
     MessageBox(nullptr, L"Vertex shader compile failed.", L"Error", MB_ICONERROR | MB_OK);
@@ -147,7 +147,7 @@ auto D3D11Device::createGeometry(void) -> bool {
   D3D11_SUBRESOURCE_DATA vbData = {};
   vbData.pSysMem = vertices;
 
-  HRESULT hr = _pDevice->CreateBuffer(&vbDesc, &vbData, &_pVertexBuffer);
+  hr = _pDevice->CreateBuffer(&vbDesc, &vbData, &_pVertexBuffer);
   if (FAILED(hr)) {
     MessageBox(nullptr, L"Failed to create vertex buffer.", L"Error", MB_ICONERROR | MB_OK);
     return false;
@@ -180,7 +180,7 @@ auto D3D11Device::createSampler() -> bool {
   sd.MinLOD = 0;
   sd.MaxLOD = D3D11_FLOAT32_MAX;
 
-  HRESULT hr = _pDevice->CreateSamplerState(&sd, &_pSamplerState);
+  hr = _pDevice->CreateSamplerState(&sd, &_pSamplerState);
   if (FAILED(hr)) {
     MessageBox(nullptr, L"Failed to create sampler state.", L"Error", MB_ICONERROR | MB_OK);
     return false;
@@ -190,8 +190,6 @@ auto D3D11Device::createSampler() -> bool {
 }
 
 auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
-
-  buffer.assign(width * height, 0);
 
   D3D11_TEXTURE2D_DESC td = {};
   td.Width = width;
@@ -205,12 +203,13 @@ auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
   td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
   td.MiscFlags = 0;
 
+  buffer.assign(width * height, 0);
   D3D11_SUBRESOURCE_DATA initData = {};
   initData.pSysMem = buffer.data();
   initData.SysMemPitch = width * 4;
 
   ComPtr<ID3D11Texture2D> tex;
-  HRESULT hr = _pDevice->CreateTexture2D(&td, nullptr, &tex);
+  hr = _pDevice->CreateTexture2D(&td, nullptr, &tex);
   if (FAILED(hr)) {
     MessageBox(nullptr, L"Failed to create texture.", L"Error", MB_ICONERROR | MB_OK);
     return false;
@@ -240,7 +239,7 @@ auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height) -> bool {
     ComPtr<ID3D11Texture2D> tex;
     texRes.As(&tex);
 
-    HRESULT hr = _pDeviceContext->Map(tex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    hr = _pDeviceContext->Map(tex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     if (FAILED(hr)) {
       MessageBox(nullptr, L"Failed to map texture.", L"Error", MB_ICONERROR | MB_OK);
       return false;
@@ -248,8 +247,7 @@ auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height) -> bool {
 
     uint8_t* dest = reinterpret_cast<uint8_t*>(mapped.pData);
     uint8_t* src = reinterpret_cast<uint8_t*>(buffer.data());
-    for (int y = 0; y < height; ++y)
-    {
+    for (int y = 0; y < height; ++y) {
         memcpy(dest + y * mapped.RowPitch, src + y * width * 4, width * 4);
     }
 
@@ -290,7 +288,7 @@ auto D3D11Device::render(void) -> void {
 
 auto D3D11Device::setShader(const string& pathname) -> void {
   if(_chain != NULL) {
-    _libra.gl_filter_chain_free(&_chain);
+    _libra.d3d11_filter_chain_free(&_chain);
   }
 
   if(_preset != NULL) {
@@ -299,13 +297,13 @@ auto D3D11Device::setShader(const string& pathname) -> void {
 
   if(file::exists(pathname)) {
     if(_libra.preset_create(pathname.data(), &_preset) != NULL) {
-      print(string{"OpenGL: Failed to load shader: ", pathname, "\n"});
+      print(string{"D3D11Device: Failed to load shader: ", pathname, "\n"});
       setShader("");
       return;
     }
     /*
-    if(auto error = _libra.gl_filter_chain_create(&_preset, resolveSymbol, NULL, &_chain)) {
-      print(string{"OpenGL: Failed to create filter chain for: ", pathname, "\n"});
+    if(auto error = _libra.d3d11_filter_chain_create(&_preset, resolveSymbol, NULL, &_chain)) {
+      print(string{"D3D11Device: Failed to create filter chain for: ", pathname, "\n"});
       _libra.error_print(error);
       setShader("");
       return;

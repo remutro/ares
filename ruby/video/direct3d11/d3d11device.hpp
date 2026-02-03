@@ -20,10 +20,14 @@ public:
   auto createGeometry(void) -> bool;
   auto createSampler(void) -> bool;
   auto createTextureAndSRV(u32 width, u32 height) -> bool;
-  auto updateTexturefromBuffer(u32 width, u32 height) -> bool;
-  auto render(void) -> void;
   auto releaseRenderTargetView(void) -> void { _pRenderTargetView.Reset(); }
+  auto render(void) -> void;
+  auto resizeTextureBuffer(u32 width, u32 height) -> void { buffer.assign(width * height, 0);};
+  auto updateTexturefromBuffer(u32 width, u32 height) -> bool;
   auto setShader(const string& pathname) -> void;
+  auto getMappedResource() -> D3D11_MAPPED_SUBRESOURCE& { return mapped; }
+
+private:
 
   HRESULT hr = S_OK;
   
@@ -42,8 +46,7 @@ public:
   std::vector<uint32_t> buffer;
   D3D11_MAPPED_SUBRESOURCE mapped;
 
-  struct Vertex
-  {
+  struct Vertex {
     float x, y, z;
     float u, v;
   };
