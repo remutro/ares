@@ -1,42 +1,13 @@
 
 #include "direct3d11/d3d11device.hpp"
 
-D3D11Device _device;
-// Timing
-std::chrono::steady_clock::time_point start = std::chrono::high_resolution_clock::now();
+typedef std::unique_ptr<D3D11Device> PD3D11Device ;
+libra_instance_t _libra;
+libra_shader_preset_t _preset = NULL;
+libra_gl_filter_chain_t  _chain = NULL;
 
 static LRESULT CALLBACK VideoDirect3D11_WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   if(msg == WM_SYSKEYDOWN && wparam == VK_F4) return false;
-/*
-  if(msg == WM_SIZE) {
-    if (_device._pDevice) {
-      UINT width = LOWORD(lparam);
-      UINT height = HIWORD(lparam);
-
-      // Avoid handling when minimized
-      if (width != 0 || height != 0) {
-        // Release RTV, resize buffers, recreate RTV and viewport, recreate texture to match new size
-        _device.releaseTextureBufferResources();
-        HRESULT hr = _device._pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
-        _device.createRenderTarget(width, height);
-
-        // Recreate texture / SRV to match new size
-        _device._pTextureSRV.Reset();
-        _device.createTextureAndSRV(width, height);
-
-        // Update viewport to new size
-        D3D11_VIEWPORT vp = {};
-        vp.TopLeftX = 0;
-        vp.TopLeftY = 0;
-        vp.Width = static_cast<FLOAT>(width);
-        vp.Height = static_cast<FLOAT>(height);
-        vp.MinDepth = 0.0f;
-        vp.MaxDepth = 1.0f;
-        _device._pDeviceContext->RSSetViewports(1, &vp);
-      }
-    }
-  }
-  */
   return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
@@ -97,7 +68,7 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto size(u32& width, u32& height) -> void override {
-    /*
+    
     if(_lost && !recover()) return;
 
     RECT rectangle;
@@ -109,11 +80,11 @@ struct VideoDirect3D11 : VideoDriver {
     //if output size changed, driver must be re-initialized.
     //failure to do so causes scaling issues on some video drivers.
     if(width != _windowWidth || height != _windowHeight) initialize();
-    */
+    
   }
 
   auto acquire(u32*& data, u32& pitch, u32 width, u32 height) -> bool override {
-    /*
+    
     if(_lost && !recover()) return false;
 
     u32 windowWidth, windowHeight;
@@ -123,6 +94,12 @@ struct VideoDirect3D11 : VideoDriver {
       resize(_inputWidth = width, _inputHeight = height);
     }
 
+    if(!(_device->updateTexturefromBuffer(width, height))) return false;
+
+    pitch = _device->mapped.RowPitch;
+    return data = (u32*)(_device->mapped.pData);
+    
+    /*
     D3DSURFACE_DESC surfaceDescription;
     _texture->GetLevelDesc(0, &surfaceDescription);
     _texture->GetSurfaceLevel(0, &_surface);
@@ -130,8 +107,9 @@ struct VideoDirect3D11 : VideoDriver {
     D3DLOCKED_RECT lockedRectangle;
     _surface->LockRect(&lockedRectangle, 0, D3DLOCK_NOSYSLOCK | D3DLOCK_DISCARD);
     pitch = lockedRectangle.Pitch;
+    
+    return data = (u32*)lockedRectangle.pBits;
     */
-    return data;// = (u32*)lockedRectangle.pBits;
   }
 
   auto release() -> void override {
@@ -148,11 +126,7 @@ struct VideoDirect3D11 : VideoDriver {
     if(!width) width = _windowWidth;
     if(!height) height = _windowHeight;
 
-    auto now = std::chrono::high_resolution_clock::now();
-    float seconds = std::chrono::duration<float>(now - start).count();
-
-    _device.updateTexturefromBuffer(width, height, seconds);
-    _device.render();
+    _device->render();
 
     /*
     _device->BeginScene();
@@ -189,9 +163,9 @@ private:
   }
 
   auto recover() -> bool {
-/*
+  
     if(!_device) return false;
-
+    /*
     if(_lost) {
       if(_vertexBuffer) { _vertexBuffer->Release(); _vertexBuffer = nullptr; }
       if(_surface) { _surface->Release(); _surface = nullptr; }
@@ -248,13 +222,15 @@ private:
   }
 
   auto updateFilter() -> bool {
-    //if(!_device) return false;
-    //if(_lost && !recover()) return false;
+    if(!_device) return false;
+    if(_lost && !recover()) return false;
 
-    //_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-    //_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+    //acquireContext();
+    _device->setShader(self.shader);
+    //releaseContext();
     return true;
   }
+    
 /*
   //(x,y) screen coordinates, in pixels
   //(u,v) texture coordinates, betweeen 0.0 (top, left) to 1.0 (bottom, right)
@@ -318,20 +294,23 @@ private:
       _context = (HWND)self.context;
     }
 
+    _libra = librashader_load_instance();
+    if(!_libra.instance_loaded) {
+      print("OpenGL: Failed to load librashader: shaders will be disabled\n");
+    }
+
     RECT rectangle;
     GetClientRect(_context, &rectangle);
     _windowWidth = rectangle.right - rectangle.left;
     _windowHeight = rectangle.bottom - rectangle.top;
 
-    if(!(_device.createDeviceAndSwapChain(_context, _windowWidth, _windowHeight))) { return false; }
-    if(!(_device.createRenderTarget(_windowWidth, _windowHeight))) { return false; }
-    if(!(_device.compileShaders())) { return false; }
-    if(!(_device.createGeometry())) { return false; }
-    if(!(_device.createSampler())) { return false; }
-    if(!(_device.createTextureAndSRV(_windowWidth, _windowHeight))) { return false; }
-
-    //output(_windowWidth, _windowHeight);
-
+    if(!(_device->createDeviceAndSwapChain(_context, _windowWidth, _windowHeight))) { return false; }
+    if(!(_device->createRenderTarget(_windowWidth, _windowHeight))) { return false; }
+    if(!(_device->compileShaders())) { return false; }
+    if(!(_device->createGeometry())) { return false; }
+    if(!(_device->createSampler())) { return false; }
+    if(!(_device->createTextureAndSRV(_windowWidth, _windowHeight))) { return false; }
+  
     _lost = false;
     //return _ready = recover();
     return (_ready = true);
@@ -340,8 +319,8 @@ private:
   auto terminate() -> void {
     _ready = false;
     
-    _device.releaseTextureBufferResources();
-  
+    _device->releaseRenderTargetView();
+    
     if(_window) { DestroyWindow(_window); _window = nullptr; }
     _context = nullptr;
   }
@@ -355,18 +334,9 @@ private:
   bool _exclusive = false;
   bool _lost = true;
 
+  PD3D11Device _device = std::make_unique<D3D11Device>();
   HWND _window = nullptr;
   HWND _context = nullptr;
-
-  /*
-  LPDIRECT3D9 _instance = nullptr;
-  LPDIRECT3DDEVICE9 _device = nullptr;
-  LPDIRECT3DVERTEXBUFFER9 _vertexBuffer = nullptr;
-  D3DPRESENT_PARAMETERS _presentation = {};
-  D3DCAPS9 _capabilities = {};
-  LPDIRECT3DTEXTURE9 _texture = nullptr;
-  LPDIRECT3DSURFACE9 _surface = nullptr;
-*/
 
   u32 _windowWidth;
   u32 _windowHeight;
@@ -378,9 +348,4 @@ private:
   s32 _monitorHeight;
   u32 _inputWidth;
   u32 _inputHeight;
-
-  u32 _textureUsage;
-  u32 _texturePool;
-  u32 _vertexUsage;
-  u32 _vertexPool;
 };

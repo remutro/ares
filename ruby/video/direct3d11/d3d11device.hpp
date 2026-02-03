@@ -3,6 +3,7 @@
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 #include <vector>
+#include <thirdparty/librashader/include/librashader/librashader_ld.h>
 
 using Microsoft::WRL::ComPtr; 
 
@@ -19,9 +20,10 @@ public:
   auto createGeometry(void) -> bool;
   auto createSampler(void) -> bool;
   auto createTextureAndSRV(u32 width, u32 height) -> bool;
-  auto updateTexturefromBuffer(u32 width, u32 height, float seconds) -> bool;
+  auto updateTexturefromBuffer(u32 width, u32 height) -> bool;
   auto render(void) -> void;
-  auto releaseTextureBufferResources(void) -> void { _pRenderTargetView.Reset(); }
+  auto releaseRenderTargetView(void) -> void { _pRenderTargetView.Reset(); }
+  auto setShader(const string& pathname) -> void;
 
   HRESULT hr = S_OK;
   
@@ -37,10 +39,8 @@ public:
   ComPtr<ID3D11ShaderResourceView>   _pTextureSRV;
   ComPtr<ID3D11SamplerState>         _pSamplerState;
 
-  // CPU buffer and texture size
-  int g_TexWidth = 800;
-  int g_TexHeight = 600;
-  std::vector<uint32_t> g_CPUBuffer;
+  std::vector<uint32_t> buffer;
+  D3D11_MAPPED_SUBRESOURCE mapped;
 
   struct Vertex
   {

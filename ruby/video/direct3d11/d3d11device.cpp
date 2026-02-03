@@ -190,15 +190,15 @@ auto D3D11Device::createSampler() -> bool {
 }
 
 auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
-  // Create CPU buffer
-  g_CPUBuffer.assign(width * height, 0);
+
+  buffer.assign(width * height, 0);
 
   D3D11_TEXTURE2D_DESC td = {};
   td.Width = width;
   td.Height = height;
   td.MipLevels = 1;
   td.ArraySize = 1;
-  td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  td.Format = DXGI_FORMAT_B8G8R8X8_UNORM;
   td.SampleDesc.Count = 1;
   td.Usage = D3D11_USAGE_DYNAMIC;
   td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -206,7 +206,7 @@ auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
   td.MiscFlags = 0;
 
   D3D11_SUBRESOURCE_DATA initData = {};
-  initData.pSysMem = g_CPUBuffer.data();
+  initData.pSysMem = buffer.data();
   initData.SysMemPitch = width * 4;
 
   ComPtr<ID3D11Texture2D> tex;
@@ -231,21 +231,7 @@ auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
   return true;
 }
 
-auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height, float seconds) -> bool {
-    // Simple moving gradient/ripple pattern
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        float fx = (float)x / width;
-        float fy = (float)y / height;
-        float value = 0.5f + 0.5f * sinf((fx + seconds) * 10.0f) * cosf((fy + seconds) * 6.0f);
-        uint8_t r = (uint8_t)(value * 255.0f);
-        uint8_t g = (uint8_t)((1.0f - value) * 255.0f);
-        uint8_t b = (uint8_t)((0.5f + 0.5f * sinf(seconds + fx * 10.0f)) * 255.0f);
-        uint8_t a = 255;
-        g_CPUBuffer[y * _WIN32 + x] = (a << 24) | (b << 16) | (g << 8) | (r);
-      }
-    }
-
+auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height) -> bool {
     // Map the underlying texture and copy rows
     // Acquire the texture resource from the SRV
     ComPtr<ID3D11Resource> texRes;
@@ -254,15 +240,14 @@ auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height, float seconds) 
     ComPtr<ID3D11Texture2D> tex;
     texRes.As(&tex);
 
-    D3D11_MAPPED_SUBRESOURCE mapped;
     HRESULT hr = _pDeviceContext->Map(tex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     if (FAILED(hr)) {
-    MessageBox(nullptr, L"Failed to map texture.", L"Error", MB_ICONERROR | MB_OK);
-    return false;
-  }
+      MessageBox(nullptr, L"Failed to map texture.", L"Error", MB_ICONERROR | MB_OK);
+      return false;
+    }
 
     uint8_t* dest = reinterpret_cast<uint8_t*>(mapped.pData);
-    uint8_t* src = reinterpret_cast<uint8_t*>(g_CPUBuffer.data());
+    uint8_t* src = reinterpret_cast<uint8_t*>(buffer.data());
     for (int y = 0; y < height; ++y)
     {
         memcpy(dest + y * mapped.RowPitch, src + y * width * 4, width * 4);
@@ -274,8 +259,7 @@ auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height, float seconds) 
 
 auto D3D11Device::render(void) -> void {
   // Clear RTV (not strictly necessary if rendering full-screen quad)
-  //float colorRGBABlack[] = {1.0f, 1.0f, 1.0f, 1.0f};
-  float colorRGBABlack[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+  float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 0.0f };
   _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
 
   // IA
@@ -302,4 +286,29 @@ auto D3D11Device::render(void) -> void {
 
   // Present
   _pSwapChain->Present(0, 0);
+}
+
+auto D3D11Device::setShader(const string& pathname) -> void {
+  if(_chain != NULL) {
+    _libra.gl_filter_chain_free(&_chain);
+  }
+
+  if(_preset != NULL) {
+    _libra.preset_free(&_preset);
+  }
+
+  if(file::exists(pathname)) {
+    if(_libra.preset_create(pathname.data(), &_preset) != NULL) {
+      print(string{"OpenGL: Failed to load shader: ", pathname, "\n"});
+      setShader("");
+      return;
+    }
+    /*
+    if(auto error = _libra.gl_filter_chain_create(&_preset, resolveSymbol, NULL, &_chain)) {
+      print(string{"OpenGL: Failed to create filter chain for: ", pathname, "\n"});
+      _libra.error_print(error);
+      setShader("");
+      return;
+    }*/
+  }
 }
