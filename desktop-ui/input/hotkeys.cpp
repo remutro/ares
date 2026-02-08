@@ -175,6 +175,11 @@ auto InputManager::createHotkeys() -> void {
       }
     }
   }));
+
+  hotkeys.push_back(InputHotkey("Toggle Turbo Fire").onPress([&] {
+    if(!emulator) return;
+    inputManager.turboState = !inputManager.turboState;
+  }));
 }
 
 auto InputManager::pollHotkeys() -> void {

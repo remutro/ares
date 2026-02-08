@@ -25,6 +25,7 @@ struct InputMapping {
     Qualifier qualifier = Qualifier::None;
   };
   Binding bindings[BindingLimit];
+  bool turbo = false;
 };
 
 //0 or 1
@@ -199,6 +200,7 @@ struct InputManager {
   auto create() -> void;
   auto bind() -> void;
   auto poll(bool force = false) -> void;
+  auto frame() -> void;
   auto eventInput(std::shared_ptr<HID::Device>, u32 groupID, u32 inputID, s16 oldValue, s16 newValue) -> void;
 
   //hotkeys.cpp
@@ -210,6 +212,10 @@ struct InputManager {
 
   u64 pollFrequency = 5;
   u64 lastPoll = 0;
+
+  uint turboCounter = 0;
+  uint turboFrequency = 0;
+  bool turboState = true;
 };
 
 extern VirtualPort virtualPorts[5];

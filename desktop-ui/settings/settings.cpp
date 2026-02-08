@@ -94,6 +94,7 @@ auto Settings::process(bool load) -> void {
 
   bind(string,  "Input/Driver", input.driver);
   bind(string,  "Input/Defocus", input.defocus);
+  bind(natural, "Input/TurboFrequency", input.turbofrequency);
 
   bind(boolean, "Boot/Fast", boot.fast);
   bind(boolean, "Boot/Debugger", boot.debugger);
@@ -141,11 +142,18 @@ auto Settings::process(bool load) -> void {
     auto& port = virtualPorts[index];
     for(auto& input : port.pad.inputs) {
       string name = {"VirtualPad", 1 + index, "/", string{input.name}.replace(" ", ".").replace("(", ".").replace(")", "")}, value;
-      if(load == 0) for(auto& assignment : input.mapping->assignments) value.append(assignment, ";");
-      if(load == 0) value.trimRight(";", 1L);
+      if(load == 0) {
+        for(auto& assignment : input.mapping->assignments) value.append(assignment, ";");
+        if(input.type == InputNode::Type::Digital) {
+          value.append(input.mapping->turbo ? "true" : "false");
+        } else {
+          value.trimRight(";", 1L);
+        }
+      }
       bind(string, name, value);
       if(load == 1) {
         auto parts = nall::split(value, ";");
+        if(parts.size() == 4 && input.type == InputNode::Type::Digital) input.mapping->turbo = parts[3].boolean();
         parts.resize(BindingLimit);
         for(u32 binding : range(BindingLimit)) input.mapping->assignments[binding] = parts[binding];
       }

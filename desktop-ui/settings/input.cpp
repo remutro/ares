@@ -9,11 +9,26 @@ auto InputSettings::construct() -> void {
   systemList.onChange([&] { systemChange(); });
   portList.onChange([&] { portChange(); });
   deviceList.onChange([&] { deviceChange(); });
+  turboLabel.setText("Turbo Rate: ").setToolTip(
+    "The number of frames to wait between toggling turbo buttons."
+  );
+  for(uint frequency : range(1, 9)) {
+    ComboButtonItem item{&turboList};
+    item.setText(frequency);
+    if(frequency == settings.input.turbofrequency) item.setSelected();
+  }
+  turboList.setToolTip(turboLabel.toolTip()).onChange([&] {
+    uint frequency = turboList.selected().text().natural();
+    settings.input.turbofrequency = frequency;
+    inputManager.turboCounter = 0;
+    inputManager.turboFrequency = frequency;
+  });
   inputList.setBatchable();
   inputList.setHeadered();
   inputList.onContext([&](auto cell) { eventContext(cell); });
   inputList.onChange([&] { eventChange(); });
   inputList.onActivate([&](auto cell) { eventAssign(cell); });
+  inputList.onToggle([&](auto cell) { eventToggle(cell); });
 
   systemChange();
 
@@ -45,6 +60,7 @@ auto InputSettings::portChange() -> void {
 auto InputSettings::deviceChange() -> void {
   inputList.reset();
   inputList.append(TableViewColumn().setText("Name"));
+  inputList.append(TableViewColumn().setText("Turbo"));
   for(u32 binding : range(BindingLimit)) {
     inputList.append(TableViewColumn().setText({"Mapping #", 1 + binding}).setExpandable());
   }
@@ -56,6 +72,11 @@ auto InputSettings::deviceChange() -> void {
     TableViewItem item{&inputList};
     item.setAttribute<u32>("type", (u32)input.type);
     item.append(TableViewCell().setText(input.name).setFont(Font().setBold()));
+    if(input.type == InputNode::Type::Digital) {
+      item.append(TableViewCell().setCheckable().setChecked(input.mapping->turbo));
+    } else {
+      item.append(TableViewCell());
+    }
     for(u32 binding : range(BindingLimit)) item.append(TableViewCell());
   }
 
@@ -74,7 +95,7 @@ auto InputSettings::refresh() -> void {
     for(u32 binding : range(BindingLimit)) {
       //do not remove identifier from mappings currently being assigned
       if(activeMapping && &activeMapping() == &input && activeBinding == binding) continue;
-      auto cell = inputList.item(index).cell(1 + binding);
+      auto cell = inputList.item(index).cell(2 + binding);
       cell.setIcon(input.mapping->bindings[binding].icon());
       cell.setText(input.mapping->bindings[binding].text());
     }
@@ -174,9 +195,9 @@ auto InputSettings::eventAssign(TableViewCell cell) -> void {
   if(auto item = inputList.selected()) {
     if(activeMapping) refresh();  //clear any previous assign arrow prompts
     activeMapping = device.inputs[item.offset()];
-    activeBinding = max(0, (s32)cell.offset() - 1);
+    activeBinding = max(0, (s32)cell.offset() - 2);
 
-    item.cell(1 + activeBinding).setIcon(Icon::Go::Right).setText("(assign ...)");
+    item.cell(2 + activeBinding).setIcon(Icon::Go::Right).setText("(assign ...)");
     assignLabel.setText({"Press a key or button for mapping #", 1 + activeBinding, " [", activeMapping->name, "] ..."});
     refresh();
     settingsWindow.setDismissable(false);
@@ -199,6 +220,17 @@ auto InputSettings::eventInput(std::shared_ptr<HID::Device> device, u32 groupID,
       inputList.setFocused();
       settingsWindow.setDismissable(true);
     }).setInterval(200).setEnabled();
+  }
+}
+
+auto InputSettings::eventToggle(TableViewCell cell) -> void {
+  auto& ports = Emulator::enumeratePorts(systemList.selected().text());
+  auto& port = ports[portList.selected().offset()];
+  auto& device = port.devices[deviceList.selected().offset()];
+  if(auto item = inputList.selected()) {
+    auto& input = device.inputs[item.offset()];
+    input.mapping->turbo = cell.checked();
+    print("Set turbo = ", input.mapping->turbo, ", name: ", input.name, "\n");
   }
 }
 

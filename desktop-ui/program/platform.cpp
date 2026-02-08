@@ -114,6 +114,8 @@ auto Program::video(ares::Node::Video::Screen node, const u32* data, u32 pitch, 
   }
   ruby::video.unlock();
 
+  inputManager.frame();
+
   static u64 vblankCounter = 0, previous, current;
   vblankCounter++;
 

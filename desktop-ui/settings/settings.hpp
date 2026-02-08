@@ -63,6 +63,7 @@ struct Settings : Markup::Node {
   struct Input {
     string driver;
     string defocus = "Pause";
+    u32 turbofrequency = 4;
   } input;
 
   struct Boot {
@@ -207,6 +208,7 @@ struct InputSettings : VerticalLayout {
   auto eventAssign(TableViewCell, string binding) -> void;
   auto eventAssign(TableViewCell) -> void;
   auto eventInput(std::shared_ptr<HID::Device>, u32 groupID, u32 inputID, s16 oldValue, s16 newValue) -> void;
+  auto eventToggle(TableViewCell cell) -> void;
   auto setVisible(bool visible = true) -> InputSettings&;
 
   HorizontalLayout indexLayout{this, Size{~0, 0}};
@@ -214,6 +216,9 @@ struct InputSettings : VerticalLayout {
     ComboButton portList{&indexLayout, Size{~0, 0}};
     ComboButton deviceList{&indexLayout, Size{~0, 0}};
   TableView inputList{this, Size{~0, ~0}};
+  HorizontalLayout turboLayout{this, Size{~0, 0}};
+    Label turboLabel{&turboLayout, Size{0, 0}};
+    ComboButton turboList{&turboLayout, Size{0, 0}};
   HorizontalLayout controlLayout{this, Size{~0, 0}};
     Label assignLabel{&controlLayout, Size{~0, 0}};
     Canvas spacer{&controlLayout, Size{1, 0}};

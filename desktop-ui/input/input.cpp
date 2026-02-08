@@ -487,6 +487,8 @@ VirtualMouse::VirtualMouse() {
 auto InputManager::create() -> void {
   lock_guard<recursive_mutex> inputLock(program.inputMutex);
   createHotkeys();
+  turboCounter = 0;
+  turboFrequency = max(1, settings.input.turbofrequency);
 }
 
 auto InputManager::bind() -> void {
@@ -521,6 +523,10 @@ auto InputManager::poll(bool force) -> void {
       hotkeySettings.refresh();
     }
   }
+}
+
+auto InputManager::frame() -> void {
+  if(++turboCounter >= turboFrequency * 2) turboCounter = 0;
 }
 
 auto InputManager::eventInput(std::shared_ptr<HID::Device> device, u32 groupID, u32 inputID, s16 oldValue, s16 newValue) -> void {
