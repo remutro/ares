@@ -442,6 +442,22 @@ struct DebugSettings : VerticalLayout {
   Label connectInfo{this, Size{~0, 30}, 5};
 };
 
+struct ImportExportSettings : VerticalLayout {
+  auto construct() -> void;
+  auto refresh() -> void;
+  auto setVisible(bool visible = true) -> ImportExportSettings&;
+
+  Label settingsFileLabel{this, Size{~0, 0}, 5};
+  TextEdit settingsView{this, Size{~0, ~0}};
+  HorizontalLayout controlsLayout{this, Size{~0, 0}};
+    CheckLabel useImported{&controlsLayout, Size{~0, 0}, 5};
+    Canvas spacer{&controlsLayout, Size{1, 0}};
+    Button importButton{&controlsLayout, Size{80, 0}};
+    Button exportButton{&controlsLayout, Size{80, 0}};
+  
+  bool imported = false;
+};
+
 struct HomePanel : VerticalLayout {
   auto construct() -> void;
 
@@ -465,6 +481,7 @@ struct SettingsWindow : Window {
       PathSettings pathSettings;
       DriverSettings driverSettings;
       DebugSettings debugSettings;
+      ImportExportSettings importExportSettings;
       HomePanel homePanel;
   
   bool initialized = false;
@@ -486,3 +503,4 @@ extern FirmwareSettings& firmwareSettings;
 extern PathSettings& pathSettings;
 extern DriverSettings& driverSettings;
 extern DebugSettings& debugSettings;
+extern ImportExportSettings& importExportSettings;
