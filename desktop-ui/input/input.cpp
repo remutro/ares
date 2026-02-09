@@ -135,8 +135,15 @@ auto InputDigital::bind(u32 binding, std::shared_ptr<HID::Device> device, u32 gr
 
 auto InputDigital::value() -> s16 {
   lock_guard<recursive_mutex> inputLock(program.inputMutex);
-  s16 result = 0;
+  
+  if(turbo == true && inputManager.turboState == true) {
+      auto& mapping = emulator->ports[0].devices[0].inputs[3].mapping;
+      auto result = mapping->value();
+      print("turboCounter: ", inputManager.turboCounter, ", turboFrequency: ", inputManager.turboFrequency, "\n");
+      if(result) return inputManager.turboCounter >= inputManager.turboFrequency;
+  }
 
+  s16 result = 0;
   for(auto& binding : bindings) {
     if(!binding.device) continue;  //unbound
 
@@ -487,8 +494,6 @@ VirtualMouse::VirtualMouse() {
 auto InputManager::create() -> void {
   lock_guard<recursive_mutex> inputLock(program.inputMutex);
   createHotkeys();
-  turboCounter = 0;
-  turboFrequency = max(1, settings.input.turbofrequency);
 }
 
 auto InputManager::bind() -> void {

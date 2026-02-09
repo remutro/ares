@@ -12,15 +12,14 @@ auto InputSettings::construct() -> void {
   turboLabel.setText("Turbo Rate: ").setToolTip(
     "The number of frames to wait between toggling turbo buttons."
   );
-  for(uint frequency : range(1, 9)) {
+  for(u32 frequency : range(1, 9)) {
     ComboButtonItem item{&turboList};
     item.setText(frequency);
     if(frequency == settings.input.turbofrequency) item.setSelected();
   }
   turboList.setToolTip(turboLabel.toolTip()).onChange([&] {
-    uint frequency = turboList.selected().text().natural();
+    u32 frequency = turboList.selected().text().natural();
     settings.input.turbofrequency = frequency;
-    inputManager.turboCounter = 0;
     inputManager.turboFrequency = frequency;
   });
   inputList.setBatchable();
@@ -230,7 +229,8 @@ auto InputSettings::eventToggle(TableViewCell cell) -> void {
   if(auto item = inputList.selected()) {
     auto& input = device.inputs[item.offset()];
     input.mapping->turbo = cell.checked();
-    print("Set turbo = ", input.mapping->turbo, ", name: ", input.name, "\n");
+    print("port: ", port.name, ", device: ", device.name, ", input: ", input.name, "\n");
+    print("Set turbo = ", input.mapping->turbo, ", name: ", input.name, ", inputID: ", input.mapping->bindings->inputID, "\n");
   }
 }
 

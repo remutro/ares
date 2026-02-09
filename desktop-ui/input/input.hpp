@@ -213,8 +213,8 @@ struct InputManager {
   u64 pollFrequency = 5;
   u64 lastPoll = 0;
 
-  uint turboCounter = 0;
-  uint turboFrequency = 0;
+  u32 turboCounter = 0;
+  u32 turboFrequency = 0;
   bool turboState = true;
 };
 

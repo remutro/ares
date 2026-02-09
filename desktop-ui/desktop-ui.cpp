@@ -107,6 +107,7 @@ auto nall::main(Arguments arguments) -> void {
   Emulator::construct();
 
   settings.load();
+  inputManager.turboFrequency = max(1, settings.input.turbofrequency);
 
   if(arguments.find("--setting")) {
     string settingValue;

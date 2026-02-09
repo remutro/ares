@@ -63,7 +63,7 @@ struct Settings : Markup::Node {
   struct Input {
     string driver;
     string defocus = "Pause";
-    u32 turbofrequency = 4;
+    u32 turbofrequency = 0;
   } input;
 
   struct Boot {
