@@ -255,10 +255,14 @@ auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height) -> bool {
     return true;
 }
 
-auto D3D11Device::render(void) -> void {
-  // Clear RTV (not strictly necessary if rendering full-screen quad)
+auto D3D11Device::clearRTV() -> void {
   float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 0.0f };
   _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
+}
+
+auto D3D11Device::render(void) -> void {
+  // Clear RTV (not strictly necessary if rendering full-screen quad)
+  clearRTV();
 
   // IA
   UINT stride = sizeof(Vertex);

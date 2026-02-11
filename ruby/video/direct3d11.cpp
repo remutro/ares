@@ -45,30 +45,10 @@ struct VideoDirect3D11 : VideoDriver {
 
   auto clear() -> void override {
     if(_lost && !recover()) return;
-/*
-    D3DSURFACE_DESC surfaceDescription;
-    _texture->GetLevelDesc(0, &surfaceDescription);
-    _texture->GetSurfaceLevel(0, &_surface);
-
-    if(_surface) {
-      D3DLOCKED_RECT lockedRectangle;
-      _surface->LockRect(&lockedRectangle, 0, D3DLOCK_NOSYSLOCK | D3DLOCK_DISCARD);
-      memory::fill(lockedRectangle.pBits, lockedRectangle.Pitch * surfaceDescription.Height);
-      _surface->UnlockRect();
-      _surface->Release();
-      _surface = nullptr;
-    }
-
-    //clear primary display and all backbuffers
-    for(u32 n : range(3)) {
-      _device->Clear(0, 0, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0x00, 0x00, 0x00), 1.0f, 0);
-      _device->Present(0, 0, 0, 0);
-    }
-    */
+    _device->clearRTV();
   }
 
   auto size(u32& width, u32& height) -> void override {
-    
     if(_lost && !recover()) return;
 
     RECT rectangle;
@@ -77,10 +57,10 @@ struct VideoDirect3D11 : VideoDriver {
     width = rectangle.right - rectangle.left;
     height = rectangle.bottom - rectangle.top;
 
-    //if output size changed, driver must be re-initialized.
-    //failure to do so causes scaling issues on some video drivers.
+    print("D3D11-size(): Current window size ", _windowWidth, "x", _windowHeight, "\n");
+    print("D3D11-size(): Window size changed to ", width, "x", height, "\n\n");
+
     if(width != _windowWidth || height != _windowHeight) initialize();
-    
   }
 
   auto acquire(u32*& data, u32& pitch, u32 width, u32 height) -> bool override {
@@ -100,20 +80,50 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto release() -> void override {
-  /*
-    _surface->UnlockRect();
-    _surface->Release();
-    _surface = nullptr;
-  */
+    if(_device) _device->releaseRenderTargetView();
   }
 
   auto output(u32 width, u32 height) -> void override {
     if(_lost && !recover()) return;
 
-    if(!width) width = _windowWidth;
-    if(!height) height = _windowHeight;
+    //center output within window
+    u32 x = (_windowWidth - width) / 2;
+    u32 y = (_windowHeight - height) / 2;
 
-    _device->render();
+    print("D3D11-output(): Resizing to ", width, "x", height, " at (", x, ",", y, ")\n");
+    print("D3D11-output(): Texture size ", _textureWidth, "x", _textureHeight, "\n");
+    print("D3D11-output(): Window size ", _windowWidth, "x", _windowHeight, "\n\n");
+
+    if (_device) {
+      // Avoid handling when minimized
+      print("D3D11-resize(): Checking for zero width/height, width ", width, ", height ", height, "\n");
+      if (width == 0 || height == 0) return;
+
+      // Release RTV, resize buffers, recreate RTV and viewport, recreate texture to match new size
+      _device->releaseRenderTargetView();      
+      HRESULT hr = _device->_pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+      if (FAILED(hr)) {
+        print("D3D11: ResizeBuffers failed\n");
+        return;
+      }
+      _device->createRenderTarget(width, height);
+
+      // Recreate texture / SRV to match new size
+      _device->_pTextureSRV.Reset();
+      _device->createTextureAndSRV(width, height);
+
+      // Update viewport to new size
+      D3D11_VIEWPORT vp = {};
+      vp.TopLeftX = 0;
+      vp.TopLeftY = 0;
+      vp.Width = static_cast<FLOAT>(width);
+      vp.Height = static_cast<FLOAT>(height);
+      vp.MinDepth = 0.0f;
+      vp.MaxDepth = 1.0f;
+      _device->_pDeviceContext->RSSetViewports(1, &vp);
+    }
+
+    if(_device) _device->render();
   }
 
 private:
@@ -142,44 +152,15 @@ private:
   auto recover() -> bool {
   
     if(!_device) return false;
-    /*
-    if(_lost) {
-      if(_vertexBuffer) { _vertexBuffer->Release(); _vertexBuffer = nullptr; }
-      if(_surface) { _surface->Release(); _surface = nullptr; }
-      if(_texture) { _texture->Release(); _texture = nullptr; }
-      if(_device->Reset(&_presentation) != D3D_OK) return false;
-    }
+    
+    if(_lost) release();
     _lost = false;
-
-    _device->SetDialogBoxMode(false);
-
-    _device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-    _device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-    _device->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-
-    _device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-    _device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-    _device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-
-    _device->SetRenderState(D3DRS_LIGHTING, false);
-    _device->SetRenderState(D3DRS_ZENABLE, false);
-    _device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-
-    _device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-    _device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    _device->SetRenderState(D3DRS_ALPHABLENDENABLE, false);
-
-    _device->SetVertexShader(nullptr);
-    _device->SetFVF(D3DFVF_XYZRHW | D3DFVF_TEX1);
-
-    _device->CreateVertexBuffer(sizeof(Vertex) * 4, _vertexUsage, D3DFVF_XYZRHW | D3DFVF_TEX1,
-      (D3DPOOL)_vertexPool, &_vertexBuffer, nullptr);
     _textureWidth = 0;
     _textureHeight = 0;
     resize(_inputWidth = 256, _inputHeight = 256);
     updateFilter();
     clear();
-*/
+
     return true;
   }
 
@@ -189,8 +170,42 @@ private:
     _textureWidth = bit::round(max(width, _textureWidth));
     _textureHeight = bit::round(max(height, _textureHeight));
 
-    _device->resizeTextureBuffer(_textureWidth, _textureHeight);
+    //center output within window
+    u32 x = (_windowWidth - width) / 2;
+    u32 y = (_windowHeight - height) / 2;
 
+    print("D3D11-resize(): Resizing to ", width, "x", height, " at (", x, ",", y, ")\n");
+    print("D3D11-resize(): Window size ", _windowWidth, "x", _windowHeight, "\n");
+    print("D3D11-resize(): Texture size ", _textureWidth, "x", _textureHeight, "\n\n");
+/*
+    if (_device) {
+      // Avoid handling when minimized
+      print("D3D11-Resize(): Checking for zero width/height, width ", width, ", height ", height, "\n");
+      if (width == 0 || height == 0) return;
+
+      // Release RTV, resize buffers, recreate RTV and viewport, recreate texture to match new size
+      _device->releaseRenderTargetView();      
+      HRESULT hr = _device->_pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+      if (FAILED(hr)) {
+        print("D3D11: ResizeBuffers failed\n");
+        return;
+      }
+      _device->createRenderTarget(width, height);
+
+      // Recreate texture / SRV to match new size
+      _device->_pTextureSRV.Reset();
+      _device->createTextureAndSRV(width, height);
+
+      // Update viewport to new size
+      D3D11_VIEWPORT vp = {};
+      vp.TopLeftX = 0;
+      vp.TopLeftY = 0;
+      vp.Width = static_cast<FLOAT>(width);
+      vp.Height = static_cast<FLOAT>(height);
+      vp.MinDepth = 0.0f;
+      vp.MaxDepth = 1.0f;
+      _device->_pDeviceContext->RSSetViewports(1, &vp);
+    }
 /*
     if(_capabilities.MaxTextureWidth < _textureWidth || _capabilities.MaxTextureWidth < _textureHeight) return;
 
@@ -210,36 +225,6 @@ private:
     return true;
   }
     
-/*
-  //(x,y) screen coordinates, in pixels
-  //(u,v) texture coordinates, betweeen 0.0 (top, left) to 1.0 (bottom, right)
-  auto setVertex(u32 px, u32 py, u32 pw, u32 ph, u32 tw, u32 th, u32 x, u32 y, u32 w, u32 h) -> void {
-    Vertex vertex[4];
-    vertex[0].x = vertex[2].x = (f64)(x     - 0.5);
-    vertex[1].x = vertex[3].x = (f64)(x + w - 0.5);
-    vertex[0].y = vertex[1].y = (f64)(y     - 0.5);
-    vertex[2].y = vertex[3].y = (f64)(y + h - 0.5);
-
-    //Z-buffer and RHW are unused for 2D blit, set to normal values
-    vertex[0].z = vertex[1].z = vertex[2].z = vertex[3].z = 0.0;
-    vertex[0].rhw = vertex[1].rhw = vertex[2].rhw = vertex[3].rhw = 1.0;
-
-    f64 rw = (f64)w / (f64)pw * (f64)tw;
-    f64 rh = (f64)h / (f64)ph * (f64)th;
-    vertex[0].u = vertex[2].u = (f64)(px    ) / rw;
-    vertex[1].u = vertex[3].u = (f64)(px + w) / rw;
-    vertex[0].v = vertex[1].v = (f64)(py    ) / rh;
-    vertex[2].v = vertex[3].v = (f64)(py + h) / rh;
-
-    LPDIRECT3DVERTEXBUFFER9* vertexPointer = nullptr;
-    _vertexBuffer->Lock(0, sizeof(Vertex) * 4, (void**)&vertexPointer, 0);
-    memory::copy<Vertex>(vertexPointer, vertex, 4);
-    _vertexBuffer->Unlock();
-
-    _device->SetStreamSource(0, _vertexBuffer, 0, sizeof(Vertex));
-
-  }
-*/
   auto initialize() -> bool {
     terminate();
     if(!self.fullScreen && !self.context) return false;

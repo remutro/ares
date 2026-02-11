@@ -21,26 +21,30 @@ public:
   auto createSampler(void) -> bool;
   auto createTextureAndSRV(u32 width, u32 height) -> bool;
   auto releaseRenderTargetView(void) -> void { _pRenderTargetView.Reset(); }
+  auto clearRTV() -> void;
   auto render(void) -> void;
-  auto resizeTextureBuffer(u32 width, u32 height) -> void { buffer.assign(width * height, 0);};
   auto updateTexturefromBuffer(u32 width, u32 height) -> bool;
   auto setShader(const string& pathname) -> void;
   auto getMappedResource() -> D3D11_MAPPED_SUBRESOURCE& { return mapped; }
+
+  ComPtr<ID3D11DeviceContext>        _pDeviceContext;
+  ComPtr<ID3D11ShaderResourceView>   _pTextureSRV;
+  ComPtr<IDXGISwapChain>             _pSwapChain;
 
 private:
 
   HRESULT hr = S_OK;
   
   ComPtr<ID3D11Device>               _pDevice;
-  ComPtr<ID3D11DeviceContext>        _pDeviceContext;
-  ComPtr<IDXGISwapChain>             _pSwapChain;
+  //ComPtr<ID3D11DeviceContext>        _pDeviceContext;
+  //ComPtr<IDXGISwapChain>             _pSwapChain;
   ComPtr<ID3D11RenderTargetView>     _pRenderTargetView;
   ComPtr<ID3D11VertexShader>         _pVertexShader;
   ComPtr<ID3D11PixelShader>          _pPixelShader;
   ComPtr<ID3D11InputLayout>          _pInputLayout;
   ComPtr<ID3D11Buffer>               _pVertexBuffer;
   ComPtr<ID3D11Buffer>               _pIndexBuffer;
-  ComPtr<ID3D11ShaderResourceView>   _pTextureSRV;
+  //ComPtr<ID3D11ShaderResourceView>   _pTextureSRV;
   ComPtr<ID3D11SamplerState>         _pSamplerState;
 
   std::vector<uint32_t> buffer;
