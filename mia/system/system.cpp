@@ -30,6 +30,7 @@ namespace Systems {
   #include "sg-1000.cpp"
   #include "sc-3000.cpp"
   #include "super-famicom.cpp"
+  #include "super-game-boy.cpp"
   #include "wonderswan.cpp"
   #include "wonderswan-color.cpp"
   #include "pocket-challenge-v2.cpp"
@@ -69,6 +70,7 @@ auto System::create(string name) -> std::shared_ptr<Pak> {
   if(name == "SG-1000") return std::make_shared<Systems::SG1000>();
   if(name == "SC-3000") return std::make_shared<Systems::SC3000>();
   if(name == "Super Famicom") return std::make_shared<Systems::SuperFamicom>();
+  if(name == "Super Game Boy") return std::make_shared<Systems::SuperGameBoy>();
   if(name == "WonderSwan") return std::make_shared<Systems::WonderSwan>();
   if(name == "WonderSwan Color") return std::make_shared<Systems::WonderSwanColor>();
   if(name == "Pocket Challenge V2") return std::make_shared<Systems::PocketChallengeV2>();

@@ -32,6 +32,7 @@ namespace Media {
   #include "sg-1000.cpp"
   #include "sc-3000.cpp"
   #include "super-famicom.cpp"
+  #include "super-game-boy.cpp"
   #include "bs-memory.cpp"
   #include "sufami-turbo.cpp"
   #include "wonderswan.cpp"
@@ -77,6 +78,7 @@ auto Medium::create(string name) -> std::shared_ptr<Pak> {
   if(name == "SG-1000") return std::make_shared<Media::SG1000>();
   if(name == "SC-3000") return std::make_shared<Media::SC3000>();
   if(name == "Super Famicom") return std::make_shared<Media::SuperFamicom>();
+  if(name == "Super Game Boy") return std::make_shared<Media::SuperGameBoy>();
   if(name == "BS Memory") return std::make_shared<Media::BSMemory>();
   if(name == "Sufami Turbo") return std::make_shared<Media::SufamiTurbo>();
   if(name == "WonderSwan") return std::make_shared<Media::WonderSwan>();

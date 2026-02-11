@@ -130,6 +130,7 @@ namespace ares::Atari2600 {
     auto option(string name, string value) -> bool;
   }
   #include "super-famicom.cpp"
+  #include "super-game-boy.cpp"
 #endif
 
 #ifdef CORE_SG
@@ -202,6 +203,10 @@ auto Emulator::construct() -> void {
 
   #ifdef CORE_SFC
   emulators.push_back(std::make_shared<SuperFamicom>());
+  #endif
+
+  #if defined(CORE_SFC) && defined(CORE_GB)
+  emulators.push_back(std::make_shared<SuperGameBoy>());
   #endif
 
   #ifdef CORE_N64

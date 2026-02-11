@@ -118,6 +118,7 @@ auto construct() -> void {
   media.push_back("SG-1000");
   media.push_back("Sufami Turbo");
   media.push_back("Super Famicom");
+  media.push_back("Super Game Boy");
   media.push_back("SuperGrafx");
   media.push_back("WonderSwan");
   media.push_back("WonderSwan Color");
