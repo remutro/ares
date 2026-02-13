@@ -55,13 +55,14 @@ auto D3D11Device::createRenderTarget(u32 width, u32 height) -> bool {
   }
   
   D3D11_VIEWPORT vp = {};
-  vp.TopLeftX = 0;
-  vp.TopLeftY = 0;
+  vp.TopLeftX = 0.0f;
+  vp.TopLeftY = 0.0f;
   vp.Width = static_cast<FLOAT>(width);
   vp.Height = static_cast<FLOAT>(height);
   vp.MinDepth = 0.0f;
   vp.MaxDepth = 1.0f;
-  _pDeviceContext->RSSetViewports(1, &vp);
+  
+  //_pDeviceContext->RSSetViewports(1, &vp);
 
   return true;
 }

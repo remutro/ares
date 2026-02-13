@@ -16,12 +16,8 @@ struct VideoDirect3D11 : VideoDriver {
   VideoDirect3D11(Video& super) : VideoDriver(super) { construct(); }
   ~VideoDirect3D11() { destruct(); }
 
-  auto create() -> bool override {
-    return initialize();
-  }
-
+  auto create() -> bool override { return initialize(); }
   auto driver() -> string override { return "Direct3D 11.1"; }
-  auto ready() -> bool override { return _ready; }
 
   auto hasFullScreen() -> bool override { return true; }
   auto hasMonitor() -> bool override { return true; }
@@ -44,13 +40,21 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto clear() -> void override {
-    if(_lost && !recover()) return;
-    _device->clearRTV();
+    if(_device) _device->clearRTV();
   }
 
   auto size(u32& width, u32& height) -> void override {
-    if(_lost && !recover()) return;
-
+/*
+    if(self.fullScreen) {
+      width = _monitorWidth;
+      height = _monitorHeight;
+    } else {
+      RECT rectangle;
+      GetClientRect(_context, &rectangle);
+      width = rectangle.right - rectangle.left;
+      height = rectangle.bottom - rectangle.top;
+    }
+*/
     RECT rectangle;
     GetClientRect(_context, &rectangle);
 
@@ -64,14 +68,10 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto acquire(u32*& data, u32& pitch, u32 width, u32 height) -> bool override {
-    if(_lost && !recover()) return false;
-
+    if(!_device) return false;
+    
     u32 windowWidth, windowHeight;
     size(windowWidth, windowHeight);
-
-    if(width != _inputWidth || height != _inputHeight) {
-      resize(_inputWidth = width, _inputHeight = height);
-    }
 
     if(!(_device->updateTexturefromBuffer(width, height))) return false;
 
@@ -84,46 +84,39 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto output(u32 width, u32 height) -> void override {
-    if(_lost && !recover()) return;
+    if(!_device) return;
 
-    //center output within window
-    u32 x = (_windowWidth - width) / 2;
-    u32 y = (_windowHeight - height) / 2;
-
-    print("D3D11-output(): Resizing to ", width, "x", height, " at (", x, ",", y, ")\n");
+    print("D3D11-output(): Resizing to ", width, "x", height, " at (", (_windowWidth - width) / 2, ",", (_windowHeight - height) / 2, ")\n");
     print("D3D11-output(): Texture size ", _textureWidth, "x", _textureHeight, "\n");
     print("D3D11-output(): Window size ", _windowWidth, "x", _windowHeight, "\n\n");
 
-    if (_device) {
-      // Avoid handling when minimized
-      print("D3D11-resize(): Checking for zero width/height, width ", width, ", height ", height, "\n");
-      if (width == 0 || height == 0) return;
+    // Avoid handling when minimized
+    if (width == 0 || height == 0) return;
 
-      // Release RTV, resize buffers, recreate RTV and viewport, recreate texture to match new size
-      _device->releaseRenderTargetView();      
-      HRESULT hr = _device->_pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
-      if (FAILED(hr)) {
-        print("D3D11: ResizeBuffers failed\n");
-        return;
-      }
-      _device->createRenderTarget(width, height);
-
-      // Recreate texture / SRV to match new size
-      _device->_pTextureSRV.Reset();
-      _device->createTextureAndSRV(width, height);
-
-      // Update viewport to new size
-      D3D11_VIEWPORT vp = {};
-      vp.TopLeftX = 0;
-      vp.TopLeftY = 0;
-      vp.Width = static_cast<FLOAT>(width);
-      vp.Height = static_cast<FLOAT>(height);
-      vp.MinDepth = 0.0f;
-      vp.MaxDepth = 1.0f;
-      _device->_pDeviceContext->RSSetViewports(1, &vp);
+    // Release RTV, resize buffers, recreate RTV and viewport, recreate texture to match new size
+    _device->releaseRenderTargetView();      
+    HRESULT hr = _device->_pSwapChain->ResizeBuffers(0, _textureWidth, _textureHeight, DXGI_FORMAT_UNKNOWN, 0);
+    if (FAILED(hr)) {
+      print("D3D11: Resizing swapchain buffers failed - texture size: ", _textureWidth, "x", _textureHeight, "\n");
+      return;
     }
+    _device->createRenderTarget(width, height);
 
-    if(_device) _device->render();
+    // Recreate texture / SRV to match new size
+    _device->_pTextureSRV.Reset();
+    _device->createTextureAndSRV(width, height);
+
+    // Update viewport to new size
+    D3D11_VIEWPORT vp = {};
+    vp.TopLeftX = static_cast<FLOAT>((_windowWidth - width) / 2);
+    vp.TopLeftY = static_cast<FLOAT>((_windowHeight - height) / 2);
+    vp.Width = static_cast<FLOAT>(width);
+    vp.Height = static_cast<FLOAT>(height);
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+
+    _device->_pDeviceContext->RSSetViewports(1, &vp);
+    _device->render();
   }
 
 private:
@@ -150,14 +143,11 @@ private:
   }
 
   auto recover() -> bool {
-  
     if(!_device) return false;
     
-    if(_lost) release();
-    _lost = false;
     _textureWidth = 0;
     _textureHeight = 0;
-    resize(_inputWidth = 256, _inputHeight = 256);
+    resize(256, 256);
     updateFilter();
     clear();
 
@@ -177,48 +167,11 @@ private:
     print("D3D11-resize(): Resizing to ", width, "x", height, " at (", x, ",", y, ")\n");
     print("D3D11-resize(): Window size ", _windowWidth, "x", _windowHeight, "\n");
     print("D3D11-resize(): Texture size ", _textureWidth, "x", _textureHeight, "\n\n");
-/*
-    if (_device) {
-      // Avoid handling when minimized
-      print("D3D11-Resize(): Checking for zero width/height, width ", width, ", height ", height, "\n");
-      if (width == 0 || height == 0) return;
-
-      // Release RTV, resize buffers, recreate RTV and viewport, recreate texture to match new size
-      _device->releaseRenderTargetView();      
-      HRESULT hr = _device->_pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
-      if (FAILED(hr)) {
-        print("D3D11: ResizeBuffers failed\n");
-        return;
-      }
-      _device->createRenderTarget(width, height);
-
-      // Recreate texture / SRV to match new size
-      _device->_pTextureSRV.Reset();
-      _device->createTextureAndSRV(width, height);
-
-      // Update viewport to new size
-      D3D11_VIEWPORT vp = {};
-      vp.TopLeftX = 0;
-      vp.TopLeftY = 0;
-      vp.Width = static_cast<FLOAT>(width);
-      vp.Height = static_cast<FLOAT>(height);
-      vp.MinDepth = 0.0f;
-      vp.MaxDepth = 1.0f;
-      _device->_pDeviceContext->RSSetViewports(1, &vp);
-    }
-/*
-    if(_capabilities.MaxTextureWidth < _textureWidth || _capabilities.MaxTextureWidth < _textureHeight) return;
-
-    if(_texture) _texture->Release();
-    _device->CreateTexture(_textureWidth, _textureHeight, 1, _textureUsage, D3DFMT_X8R8G8B8,
-      (D3DPOOL)_texturePool, &_texture, nullptr);
-*/
   }
 
   auto updateFilter() -> bool {
     if(!_device) return false;
-    if(_lost && !recover()) return false;
-
+    
     //acquireContext();
     _device->setShader(self.shader);
     //releaseContext();
@@ -274,16 +227,12 @@ private:
     if(!(_device->createGeometry())) { return false; }
     if(!(_device->createSampler())) { return false; }
     if(!(_device->createTextureAndSRV(_windowWidth, _windowHeight))) { return false; }
-  
-    _lost = false;
-    return _ready = recover();
+
+    return recover();
   }
   
   auto terminate() -> void {
-    _ready = false;
-    
-    _device->releaseRenderTargetView();
-    
+    if(_device) _device->releaseRenderTargetView();
     if(_window) { DestroyWindow(_window); _window = nullptr; }
     _context = nullptr;
   }
@@ -293,10 +242,7 @@ private:
     float u, v;          //texture coordinates
   };
 
-  bool _ready = false;
   bool _exclusive = false;
-  bool _lost = true;
-
   PD3D11Device _device = nullptr;
   HWND _window = nullptr;
   HWND _context = nullptr;
@@ -309,6 +255,4 @@ private:
   s32 _monitorY;
   s32 _monitorWidth;
   s32 _monitorHeight;
-  u32 _inputWidth;
-  u32 _inputHeight;
 };
