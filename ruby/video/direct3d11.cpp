@@ -142,23 +142,18 @@ private:
     terminate();
   }
 
-  auto recover() -> bool {
-    if(!_device) return false;
-    
-    _textureWidth = 0;
-    _textureHeight = 0;
-    resize(256, 256);
-    updateFilter();
+  auto recover(u32 width, u32 height) -> bool {
     clear();
-
+    resize(width, height);
+    updateFilter();
     return true;
   }
 
   auto resize(u32 width, u32 height) -> void {
     if(_textureWidth >= width && _textureHeight >= height) return;
 
-    _textureWidth = bit::round(max(width, _textureWidth));
-    _textureHeight = bit::round(max(height, _textureHeight));
+    _textureWidth = width; //bit::round(max(width, _textureWidth));
+    _textureHeight = height; //bit::round(max(height, _textureHeight));
 
     //center output within window
     u32 x = (_windowWidth - width) / 2;
@@ -228,7 +223,7 @@ private:
     if(!(_device->createSampler())) { return false; }
     if(!(_device->createTextureAndSRV(_windowWidth, _windowHeight))) { return false; }
 
-    return recover();
+    return recover(_windowWidth, _windowHeight);
   }
   
   auto terminate() -> void {
