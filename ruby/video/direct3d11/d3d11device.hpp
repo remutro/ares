@@ -25,11 +25,11 @@ public:
   auto render(void) -> void;
   auto updateTexturefromBuffer(u32 width, u32 height) -> bool;
   auto setShader(const string& pathname) -> void;
-  auto getMappedResource() -> D3D11_MAPPED_SUBRESOURCE& { return mapped; }
+  auto getMappedResource() -> const D3D11_MAPPED_SUBRESOURCE& { return mapped; }
 
   ComPtr<ID3D11DeviceContext>        _pDeviceContext;
-  ComPtr<ID3D11ShaderResourceView>   _pTextureSRV;
   ComPtr<IDXGISwapChain>             _pSwapChain;
+  ComPtr<ID3D11ShaderResourceView>   _pTextureSRV;
 
 private:
 

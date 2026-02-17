@@ -54,15 +54,15 @@ auto D3D11Device::createRenderTarget(u32 width, u32 height) -> bool {
     return false;
   }
   
+  print("D3D11-createRenderTarget(): Created render target view for texture buffer of size ", width, "x", height, "\n");
   D3D11_VIEWPORT vp = {};
-  vp.TopLeftX = 0.0f;
-  vp.TopLeftY = 0.0f;
+  vp.TopLeftX = 0;
+  vp.TopLeftY = 0;
   vp.Width = static_cast<FLOAT>(width);
   vp.Height = static_cast<FLOAT>(height);
   vp.MinDepth = 0.0f;
   vp.MaxDepth = 1.0f;
-  
-  //_pDeviceContext->RSSetViewports(1, &vp);
+  _pDeviceContext->RSSetViewports(1, &vp);
 
   return true;
 }
@@ -132,10 +132,10 @@ auto D3D11Device::createGeometry(void) -> bool {
   Vertex vertices[] =
   {
     // x, y, z,    u, v
-    { -1.0f,  1.0f, 0.0f,  0.0f, 0.0f }, // TL
-    {  1.0f,  1.0f, 0.0f,  1.0f, 0.0f }, // TR
-    {  1.0f, -1.0f, 0.0f,  1.0f, 1.0f }, // BR
-    { -1.0f, -1.0f, 0.0f,  0.0f, 1.0f }, // BL
+    { -1.0f,  1.0f, 0.0f, 0.0f, 0.0f }, // TL
+    {  1.0f,  1.0f, 0.0f, 1.0f, 0.0f }, // TR
+    {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f }, // BR
+    { -1.0f, -1.0f, 0.0f, 0.0f, 1.0f }, // BL
   };
 
   uint16_t indices[] = { 0, 1, 2, 0, 2, 3 };
@@ -232,7 +232,6 @@ auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
 }
 
 auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height) -> bool {
-    // Map the underlying texture and copy rows
     // Acquire the texture resource from the SRV
     ComPtr<ID3D11Resource> texRes;
     _pTextureSRV->GetResource(&texRes);
@@ -240,6 +239,7 @@ auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height) -> bool {
     ComPtr<ID3D11Texture2D> tex;
     texRes.As(&tex);
 
+    // Map the underlying texture and copy rows
     hr = _pDeviceContext->Map(tex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     if (FAILED(hr)) {
       MessageBox(nullptr, L"Failed to map texture.", L"Error", MB_ICONERROR | MB_OK);
