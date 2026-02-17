@@ -191,11 +191,6 @@ private:
     _context = nullptr;
   }
 
-  struct VertexCoords {
-    float x, y, z, rhw;  //screen coordinates
-    float u, v;          //texture coordinates
-  };
-
   PD3D11Device _device = nullptr;
   HWND _window = nullptr;
   HWND _context = nullptr;
