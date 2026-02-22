@@ -18,7 +18,7 @@ struct VideoDirect3D11 : VideoDriver {
 
   auto create() -> bool override { return initialize(); }
   auto driver() -> string override { return "Direct3D 11.1"; }
-
+ 
   auto hasFullScreen() -> bool override { return true; }
   auto hasMonitor() -> bool override { return true; }
   auto hasExclusive() -> bool override { return true; }
@@ -43,10 +43,6 @@ struct VideoDirect3D11 : VideoDriver {
     if(_device) _device->clearRTV();
   }
 
-  auto release() -> void override {
-    if(_device) _device->releaseRenderTargetView();
-  }
-
   auto size(u32& width, u32& height) -> void override {
     if(self.fullScreen) {
       width = _monitorWidth;
@@ -57,56 +53,27 @@ struct VideoDirect3D11 : VideoDriver {
       width = rectangle.right - rectangle.left;
       height = rectangle.bottom - rectangle.top;
     }
-
-    print("D3D11-size(): Window size changed to: ", width, "x", height, "\n\n");
   }
 
   auto acquire(u32*& data, u32& pitch, u32 width, u32 height) -> bool override {
-    if(!_device) return false;
+    if(!_device || width == 0 || height == 0) return false;
 
-    size(_windowWidth, _windowHeight);
-    print("D3D11-acquire(): Current window size: ", _windowWidth, "x", _windowHeight, "\n");
-
-    if(!(_device->updateTexturefromBuffer(width, height))) return false;
+    if(!(_device->createTextureAndSampler(width, height))) return false;
 
     pitch = _device->getMappedResource().RowPitch;
     return data = (u32*)(_device->getMappedResource().pData);
   }
 
+  auto release() -> void override {
+    if(_device) _device->resetRenderTargetView();
+  }
+
   auto output(u32 width, u32 height) -> void override {
-    if(!_device) return;
+    if (!_device || width == 0 || height == 0) return;
 
-    print("D3D11-output(): Resizing to ", width, "x", height, " at (", ((_windowWidth - width) / 2), ",", ((_windowHeight - height) / 2), ")\n");
-    print("D3D11-output(): Window size: ", _windowWidth, "x", _windowHeight, "\n\n");
-
-    // Avoid handling when minimized
-    if (width == 0 || height == 0) return;
-
-    // Release RTV, resize buffers, recreate RTV and viewport, recreate texture to match new size
-    _device->releaseRenderTargetView();      
-    HRESULT hr = _device->_pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
-    if (FAILED(hr)) {
-      print("D3D11-output(): ResizeBuffers failed\n");
-      return;
-    }
-    _device->createRenderTarget(width, height);
-
-    // Recreate texture / SRV to match new size
-    _device->_pTextureSRV.Reset();
-    _device->createTextureAndSRV(width, height);
-
-    print("D3D11-output(): Created render target view for texture buffer of size: ", width, "x", height, "\n");
-    // Update viewport to new size
-    D3D11_VIEWPORT vp = {};
-    vp.TopLeftX = static_cast<FLOAT>((_windowWidth - width) / 2);
-    vp.TopLeftY = static_cast<FLOAT>((_windowHeight - height) / 2);
-    vp.Width = static_cast<FLOAT>(width);
-    vp.Height = static_cast<FLOAT>(height);
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-    
-    _device->_pDeviceContext->RSSetViewports(1, &vp);
-    _device->render();
+    u32 windowWidth = 0, windowHeight = 0;
+    size(windowWidth, windowHeight);
+    _device->render(width, height, windowWidth, windowHeight);
   }
 
 private:
@@ -130,7 +97,7 @@ private:
 
   auto updateFilter() -> bool {
     if(!_device) return false;
-
+   
     //acquireContext();
     _device->setShader(self.shader);
     //releaseContext();
@@ -147,8 +114,10 @@ private:
     _monitorWidth = monitor.width;
     _monitorHeight = monitor.height;
 
+    _exclusive = self.exclusive && self.fullScreen;
+
     //Direct3D exclusive mode targets the primary monitor only
-    if(self.exclusive && self.fullScreen) {
+    if(_exclusive) {
       POINT point{0, 0};  //the primary monitor always starts at (0,0)
       HMONITOR monitor = MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY);
       MONITORINFOEX info{};
@@ -170,23 +139,20 @@ private:
 
     _libra = librashader_load_instance();
     if(!_libra.instance_loaded) {
-      print("D3D11-initialize(): Failed to load librashader: shaders will be disabled\n");
+      print("Direct3D11: Failed to load librashader: shaders will be disabled\n");
     }
 
-    size(_windowWidth, _windowHeight);
-
-    if(!(_device->createDeviceAndSwapChain(_context, _windowWidth, _windowHeight))) { return false; }
-    if(!(_device->createRenderTarget(_windowWidth, _windowHeight))) { return false; }
+    if(!(_device->createDeviceAndSwapChain(_context))) { return false; }
+    if(!(_device->createRenderTarget())) { return false; }
     if(!(_device->compileShaders())) { return false; }
     if(!(_device->createGeometry())) { return false; }
-    if(!(_device->createSampler())) { return false; }
-    if(!(_device->createTextureAndSRV(_windowWidth, _windowHeight))) { return false; }
+    if(!(_device->createSamplerState())) { return false; }
   
     return true;
   }
   
   auto terminate() -> void {
-    if(_device) _device->releaseRenderTargetView();
+    if(_device) _device->resetRenderTargetView();
     if(_window) { DestroyWindow(_window); _window = nullptr; }
     _context = nullptr;
   }
@@ -194,11 +160,10 @@ private:
   PD3D11Device _device = nullptr;
   HWND _window = nullptr;
   HWND _context = nullptr;
+  bool _exclusive = false;
 
-  u32 _windowWidth;
-  u32 _windowHeight;
-  s32 _monitorX;
-  s32 _monitorY;
-  s32 _monitorWidth;
-  s32 _monitorHeight;
+  s32 _monitorX = 0;
+  s32 _monitorY = 0;
+  s32 _monitorWidth = 0;
+  s32 _monitorHeight = 0;
 };

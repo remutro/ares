@@ -1,32 +1,20 @@
 
-auto D3D11Device::createDeviceAndSwapChain(HWND context, const u32 windowWidth, const u32 windowHeight) -> bool {
-    
-    DXGI_SWAP_CHAIN_DESC sd = {};
-    sd.BufferCount = 2;
-    sd.BufferDesc.Width = windowWidth;
-    sd.BufferDesc.Height = windowHeight;
-    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = context;
-    sd.SampleDesc.Count = 1;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-
+auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
     UINT createFlags = 0;
 #if defined(_DEBUG)
     createFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
+    D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
     D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
-    hr = D3D11CreateDeviceAndSwapChain(
+    hr = D3D11CreateDevice(
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
         nullptr,
         createFlags,
-        nullptr,
-        0,
+        featureLevels,
+        ARRAYSIZE(featureLevels),
         D3D11_SDK_VERSION,
-        &sd,
-        &_pSwapChain,
         &_pDevice,
         &featureLevel,
         &_pDeviceContext);
@@ -35,36 +23,86 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context, const u32 windowWidth, 
         MessageBox(nullptr, L"Failed to create D3D11 device and swap chain.", L"Error", MB_ICONERROR | MB_OK);
         return false;
     } 
+
+        // Obtain DXGI factory from device
+    ComPtr<IDXGIDevice> dxgiDevice;
+    hr = _pDevice.As(&dxgiDevice);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"Failed to get IDXGIDevice", L"Error", MB_ICONERROR | MB_OK);
+        return false;
+    }
+
+    ComPtr<IDXGIAdapter> adapter;
+    hr = dxgiDevice->GetAdapter(&adapter);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"Failed to get IDXGIAdapter", L"Error", MB_ICONERROR | MB_OK);
+        return false;
+    }
+
+    ComPtr<IDXGIFactory2> factory;
+    hr = adapter->GetParent(IID_PPV_ARGS(&factory));
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"Failed to get IDXGIFactory2", L"Error", MB_ICONERROR | MB_OK);
+        return false;
+    }
+
+    // Check runtime support for allowing tearing (variable refresh / uncapped presents).
+    ComPtr<IDXGIFactory6> factory6;
+    if (SUCCEEDED(factory.As(&factory6)))
+    {
+        bool allowTearing = false;
+        if (SUCCEEDED(factory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
+        {
+            _allowTearing = (allowTearing == false);
+        }
+    }
+
+    // Describe flip-model swap chain
+    DXGI_SWAP_CHAIN_DESC1 sd1 = {};
+    sd1.Width = 0;
+    sd1.Height = 0;
+    sd1.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd1.SampleDesc.Count = 1;
+    sd1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd1.BufferCount = 2;
+    sd1.Scaling = DXGI_SCALING_NONE;
+    sd1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    sd1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+    sd1.Flags = _allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+
+    // Create swap chain as IDXGISwapChain1 then query for IDXGISwapChain4
+    ComPtr<IDXGISwapChain1> sc1;
+    hr = factory->CreateSwapChainForHwnd(_pDevice.Get(), context, &sd1, nullptr, nullptr, sc1.GetAddressOf());
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"Failed to create flip-model swap chain", L"Error", MB_ICONERROR | MB_OK);
+        return false;
+    }
+
+    hr = sc1.As(&_pSwapChain);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"Failed to get IDXGISwapChain4", L"Error", MB_ICONERROR | MB_OK);
+        return false;
+    }
     
     return true;
 }
 
-auto D3D11Device::createRenderTarget(u32 width, u32 height) -> bool {
+auto D3D11Device::createRenderTarget(void) -> bool {
 
-  ComPtr<ID3D11Texture2D> textureBuffer;
-  hr = _pSwapChain->GetBuffer(0, IID_PPV_ARGS(&textureBuffer));
+  ComPtr<ID3D11Texture2D> backBuffer;
+  hr = _pSwapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
   if(FAILED(hr)) {
-    MessageBox(nullptr, L"Failed getting buffer for render target.", L"Error", MB_ICONERROR | MB_OK);
+    MessageBox(nullptr, L"Failed getting back buffer for render target.", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
 
-  hr = _pDevice->CreateRenderTargetView(textureBuffer.Get(), nullptr, &_pRenderTargetView);
+  hr = _pDevice->CreateRenderTargetView(backBuffer.Get(), nullptr, &_pRenderTargetView);
   if(FAILED(hr)) {
     MessageBox(nullptr, L"Failed creating render target view.", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
   
-  print("D3D11-createRenderTarget(): Created render target view for texture buffer of size ", width, "x", height, "\n");
-  D3D11_VIEWPORT vp = {};
-  vp.TopLeftX = 0;
-  vp.TopLeftY = 0;
-  vp.Width = static_cast<FLOAT>(width);
-  vp.Height = static_cast<FLOAT>(height);
-  vp.MinDepth = 0.0f;
-  vp.MaxDepth = 1.0f;
-  _pDeviceContext->RSSetViewports(1, &vp);
-
-  return true;
+ return true;
 }
 
 auto D3D11Device::compileShaders(void) -> bool {
@@ -132,10 +170,10 @@ auto D3D11Device::createGeometry(void) -> bool {
   Vertex vertices[] =
   {
     // x, y, z,    u, v
-    { -1.0f,  1.0f, 0.0f, 0.0f, 0.0f }, // TL
-    {  1.0f,  1.0f, 0.0f, 1.0f, 0.0f }, // TR
-    {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f }, // BR
-    { -1.0f, -1.0f, 0.0f, 0.0f, 1.0f }, // BL
+    { -1.0f,  1.0f, 0.0f,  0.0f, 0.0f }, // TL
+    {  1.0f,  1.0f, 0.0f,  1.0f, 0.0f }, // TR
+    {  1.0f, -1.0f, 0.0f,  1.0f, 1.0f }, // BR
+    { -1.0f, -1.0f, 0.0f,  0.0f, 1.0f }, // BL
   };
 
   uint16_t indices[] = { 0, 1, 2, 0, 2, 3 };
@@ -171,7 +209,7 @@ auto D3D11Device::createGeometry(void) -> bool {
   return true;
 }
 
-auto D3D11Device::createSampler() -> bool {
+auto D3D11Device::createSamplerState() -> bool {
 
   D3D11_SAMPLER_DESC sd = {};
   sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
@@ -190,7 +228,7 @@ auto D3D11Device::createSampler() -> bool {
   return true;
 }
 
-auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
+auto D3D11Device::createTextureAndSampler(u32 width, u32 height) -> bool {
 
   D3D11_TEXTURE2D_DESC td = {};
   td.Width = width;
@@ -204,9 +242,9 @@ auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
   td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
   td.MiscFlags = 0;
 
-  buffer.assign(width * height, 0);
+  _buffer.assign(width * height, 0);
   D3D11_SUBRESOURCE_DATA initData = {};
-  initData.pSysMem = buffer.data();
+  initData.pSysMem = _buffer.data();
   initData.SysMemPitch = width * 4;
 
   ComPtr<ID3D11Texture2D> tex;
@@ -215,6 +253,19 @@ auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
     MessageBox(nullptr, L"Failed to create texture.", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
+
+  hr = _pDeviceContext->Map(tex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &_mapped);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to map texture.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
+
+  uint8_t* dest = reinterpret_cast<uint8_t*>(_mapped.pData);
+  uint8_t* src = reinterpret_cast<uint8_t*>(_buffer.data());
+  for (int y = 0; y < height; ++y) {
+      memcpy(dest + y * _mapped.RowPitch, src + y * width * 4, width * 4);
+  }
+  _pDeviceContext->Unmap(tex.Get(), 0);
 
   D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
   srvd.Format = td.Format;
@@ -231,43 +282,31 @@ auto D3D11Device::createTextureAndSRV(u32 width, u32 height) -> bool {
   return true;
 }
 
-auto D3D11Device::updateTexturefromBuffer(u32 width, u32 height) -> bool {
-    // Acquire the texture resource from the SRV
-    ComPtr<ID3D11Resource> texRes;
-    _pTextureSRV->GetResource(&texRes);
-
-    ComPtr<ID3D11Texture2D> tex;
-    texRes.As(&tex);
-
-    // Map the underlying texture and copy rows
-    hr = _pDeviceContext->Map(tex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    if (FAILED(hr)) {
-      MessageBox(nullptr, L"Failed to map texture.", L"Error", MB_ICONERROR | MB_OK);
-      return false;
-    }
-
-    uint8_t* dest = reinterpret_cast<uint8_t*>(mapped.pData);
-    uint8_t* src = reinterpret_cast<uint8_t*>(buffer.data());
-    for (int y = 0; y < height; ++y) {
-        memcpy(dest + y * mapped.RowPitch, src + y * width * 4, width * 4);
-    }
-
-    _pDeviceContext->Unmap(tex.Get(), 0);
-    return true;
-}
-
-auto D3D11Device::clearRTV() -> void {
+auto D3D11Device::clearRTV(void) -> void {
   float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 0.0f };
   _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
 }
 
-auto D3D11Device::render(void) -> void {
+auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeight) -> void {
   // Clear RTV (not strictly necessary if rendering full-screen quad)
   clearRTV();
 
+  // Reset RTV, resize buffers, recreate RTV and viewport
+  resetRenderTargetView();
+  _pSwapChain->ResizeBuffers(0, windowWidth, windowHeight, DXGI_FORMAT_UNKNOWN, 0);
+  createRenderTarget();
+
+  D3D11_VIEWPORT vp = {};
+  vp.TopLeftX = (windowWidth - width) / 2;
+  vp.TopLeftY = (windowHeight - height) / 2;
+  vp.Width = static_cast<FLOAT>(width);
+  vp.Height = static_cast<FLOAT>(height);
+  vp.MinDepth = 0.0f;
+  vp.MaxDepth = 1.0f;
+  _pDeviceContext->RSSetViewports(1, &vp);
+
   // IA
-  UINT stride = sizeof(Vertex);
-  UINT offset = 0;
+  u32 stride = sizeof(Vertex), offset = 0;
   _pDeviceContext->IASetVertexBuffers(0, 1, _pVertexBuffer.GetAddressOf(), &stride, &offset);
   _pDeviceContext->IASetIndexBuffer(_pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
   _pDeviceContext->IASetInputLayout(_pInputLayout.Get());
@@ -288,7 +327,16 @@ auto D3D11Device::render(void) -> void {
   _pDeviceContext->DrawIndexed(6, 0, 0);
 
   // Present
-  _pSwapChain->Present(0, 0);
+  DXGI_PRESENT_PARAMETERS pp = {};
+  pp.DirtyRectsCount = 0;
+  pp.pDirtyRects = nullptr;
+  pp.pScrollRect = nullptr;
+  pp.pScrollOffset = nullptr;
+  if(_allowTearing) {
+    _pSwapChain->Present1(0, DXGI_PRESENT_ALLOW_TEARING, &pp);
+  } else {
+    _pSwapChain->Present1(1, 0, &pp);
+  }
 }
 
 auto D3D11Device::setShader(const string& pathname) -> void {
