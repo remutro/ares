@@ -15,20 +15,23 @@ public:
   D3D11Device() {};
   ~D3D11Device() {};
 
-  auto createDeviceAndSwapChain(HWND context) -> bool;
+  auto initialize(HWND context) -> bool;
   auto createRenderTarget(void) -> bool;
-  auto compileShaders(void) -> bool;
-  auto createGeometry(void) -> bool;
-  auto createSamplerState(void) -> bool;
   auto createTextureAndSampler(u32 width, u32 height) -> bool;
   auto resetRenderTargetView(void) -> void { _pRenderTargetView.Reset(); }
   auto clearRTV(void) -> void;
+  auto clearBackBuffer(void) -> void { _buffer.clear(); }
   auto render(u32 width, u32 height, u32 windowWidth, u32 windowHeight) -> void;
   auto setShader(const string& pathname) -> void;
   auto getMappedResource(void) -> D3D11_MAPPED_SUBRESOURCE& { return _mapped; }
 
 private:
 
+  auto createDeviceAndSwapChain(HWND context) -> bool;
+  auto compileShaders(void) -> bool;
+  auto createGeometry(void) -> bool;
+  auto createSamplerState(void) -> bool;
+  
   HRESULT hr = S_OK;
   
   ComPtr<ID3D11Device>               _pDevice;
@@ -46,6 +49,10 @@ private:
   std::vector<uint32_t> _buffer;
   D3D11_MAPPED_SUBRESOURCE _mapped;
   bool _allowTearing = false;
+
+  libra_instance_t _libra;
+  libra_shader_preset_t _preset = nullptr;
+  libra_d3d11_filter_chain_t _chain = nullptr;
 
   struct Vertex {
     float x, y, z;

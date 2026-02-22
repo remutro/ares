@@ -2,9 +2,6 @@
 #include "direct3d11/d3d11device.hpp"
 
 typedef std::unique_ptr<D3D11Device> PD3D11Device;
-libra_instance_t _libra;
-libra_shader_preset_t _preset = nullptr;
-libra_d3d11_filter_chain_t _chain = nullptr;
 
 static LRESULT CALLBACK VideoDirect3D11_WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   if(msg == WM_SYSKEYDOWN && wparam == VK_F4) return false;
@@ -21,14 +18,12 @@ struct VideoDirect3D11 : VideoDriver {
  
   auto hasFullScreen() -> bool override { return true; }
   auto hasMonitor() -> bool override { return true; }
-  auto hasExclusive() -> bool override { return true; }
   auto hasContext() -> bool override { return true; }
   auto hasBlocking() -> bool override { return true; }
   auto hasShader() -> bool override { return false; }
 
   auto setFullScreen(bool fullScreen) -> bool override { return initialize(); }
   auto setMonitor(string monitor) -> bool override { return initialize(); }
-  auto setExclusive(bool exclusive) -> bool override { return initialize(); }
   auto setContext(uintptr context) -> bool override { return initialize(); }
   auto setBlocking(bool blocking) -> bool override { return initialize(); }
   auto setShader(string shader) -> bool override { return updateFilter(); }
@@ -62,10 +57,6 @@ struct VideoDirect3D11 : VideoDriver {
 
     pitch = _device->getMappedResource().RowPitch;
     return data = (u32*)(_device->getMappedResource().pData);
-  }
-
-  auto release() -> void override {
-    if(_device) _device->resetRenderTargetView();
   }
 
   auto output(u32 width, u32 height) -> void override {
@@ -114,21 +105,6 @@ private:
     _monitorWidth = monitor.width;
     _monitorHeight = monitor.height;
 
-    _exclusive = self.exclusive && self.fullScreen;
-
-    //Direct3D exclusive mode targets the primary monitor only
-    if(_exclusive) {
-      POINT point{0, 0};  //the primary monitor always starts at (0,0)
-      HMONITOR monitor = MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY);
-      MONITORINFOEX info{};
-      info.cbSize = sizeof(MONITORINFOEX);
-      GetMonitorInfo(monitor, &info);
-      _monitorX = info.rcMonitor.left;
-      _monitorY = info.rcMonitor.top;
-      _monitorWidth = info.rcMonitor.right - info.rcMonitor.left;
-      _monitorHeight = info.rcMonitor.bottom - info.rcMonitor.top;
-    }
-
     if(self.fullScreen) {
       _context = _window = CreateWindowEx(WS_EX_TOPMOST, L"VideoDirect3D11_Window", L"", WS_VISIBLE | WS_POPUP,
         _monitorX, _monitorY, _monitorWidth, _monitorHeight,
@@ -137,18 +113,7 @@ private:
       _context = (HWND)self.context;
     }
 
-    _libra = librashader_load_instance();
-    if(!_libra.instance_loaded) {
-      print("Direct3D11: Failed to load librashader: shaders will be disabled\n");
-    }
-
-    if(!(_device->createDeviceAndSwapChain(_context))) { return false; }
-    if(!(_device->createRenderTarget())) { return false; }
-    if(!(_device->compileShaders())) { return false; }
-    if(!(_device->createGeometry())) { return false; }
-    if(!(_device->createSamplerState())) { return false; }
-  
-    return true;
+    return _device->initialize(_context);
   }
   
   auto terminate() -> void {
@@ -160,7 +125,6 @@ private:
   PD3D11Device _device = nullptr;
   HWND _window = nullptr;
   HWND _context = nullptr;
-  bool _exclusive = false;
 
   s32 _monitorX = 0;
   s32 _monitorY = 0;

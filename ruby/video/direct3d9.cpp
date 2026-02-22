@@ -69,9 +69,6 @@ struct VideoDirect3D9 : VideoDriver {
     width = rectangle.right - rectangle.left;
     height = rectangle.bottom - rectangle.top;
 
-    print("D3D9-size(): Current window size ", _windowWidth, "x", _windowHeight, "\n");
-    print("D3D9-size(): Window size changed to ", width, "x", height, "\n\n");
-
     //if output size changed, driver must be re-initialized.
     //failure to do so causes scaling issues on some video drivers.
     if(width != _windowWidth || height != _windowHeight) initialize();
@@ -113,9 +110,6 @@ struct VideoDirect3D9 : VideoDriver {
     //center output within window
     u32 x = (_windowWidth - width) / 2;
     u32 y = (_windowHeight - height) / 2;
-    print("D3D9-output(): Resizing to ", width, "x", height, " at (", x, ",", y, ")\n");
-    print("D3D9-output(): Texture size ", _textureWidth, "x", _textureHeight, "\n");
-    print("D3D9-output(): Window size ", _windowWidth, "x", _windowHeight, "\n\n");
     setVertex(0, 0, _inputWidth, _inputHeight, _textureWidth, _textureHeight, x, y, width, height);
     _device->SetTexture(0, _texture);
     _device->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
@@ -191,10 +185,6 @@ private:
 
     _textureWidth = bit::round(max(width, _textureWidth));
     _textureHeight = bit::round(max(height, _textureHeight));
-
-    print("D3D9-resize(): Resizing to ", width, "x", height, "\n");
-    print("D3D9-resize(): Window size ", _windowWidth, "x", _windowHeight, "\n");
-    print("D3D9-resize(): Texture size ", _textureWidth, "x", _textureHeight, "\n\n");
 
     if(_capabilities.MaxTextureWidth < _textureWidth || _capabilities.MaxTextureWidth < _textureHeight) return;
 

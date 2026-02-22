@@ -1,13 +1,28 @@
 
+auto D3D11Device::initialize(HWND context) -> bool {
+    if(!createDeviceAndSwapChain(context)) return false;
+    if(!createRenderTarget()) return false;
+    if(!compileShaders()) return false;
+    if(!createGeometry()) return false;
+    if(!createSamplerState()) return false;
+
+    _libra = librashader_load_instance();
+    if(!_libra.instance_loaded) {
+      MessageBox(nullptr, L"Direct3D11: Failed to load librashader: shaders will be disabled.", L"Error", MB_ICONERROR | MB_OK);
+    }
+
+    return true;
+}
+
 auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
-    UINT createFlags = 0;
+  u32 createFlags = 0;
 #if defined(_DEBUG)
-    createFlags |= D3D11_CREATE_DEVICE_DEBUG;
+  createFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-    D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
-    D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
-    hr = D3D11CreateDevice(
+  D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
+  D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
+  hr = D3D11CreateDevice(
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
         nullptr,
@@ -19,70 +34,70 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
         &featureLevel,
         &_pDeviceContext);
 
-    if (FAILED(hr)) {
-        MessageBox(nullptr, L"Failed to create D3D11 device and swap chain.", L"Error", MB_ICONERROR | MB_OK);
-        return false;
-    } 
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create D3D11 device and swap chain.", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  } 
 
-        // Obtain DXGI factory from device
-    ComPtr<IDXGIDevice> dxgiDevice;
-    hr = _pDevice.As(&dxgiDevice);
-    if (FAILED(hr)) {
-        MessageBox(nullptr, L"Failed to get IDXGIDevice", L"Error", MB_ICONERROR | MB_OK);
-        return false;
-    }
+  // Obtain DXGI factory from device
+  ComPtr<IDXGIDevice> dxgiDevice;
+  hr = _pDevice.As(&dxgiDevice);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to get IDXGIDevice", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
 
-    ComPtr<IDXGIAdapter> adapter;
-    hr = dxgiDevice->GetAdapter(&adapter);
-    if (FAILED(hr)) {
-        MessageBox(nullptr, L"Failed to get IDXGIAdapter", L"Error", MB_ICONERROR | MB_OK);
-        return false;
-    }
+  ComPtr<IDXGIAdapter> adapter;
+  hr = dxgiDevice->GetAdapter(&adapter);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to get IDXGIAdapter", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
 
-    ComPtr<IDXGIFactory2> factory;
-    hr = adapter->GetParent(IID_PPV_ARGS(&factory));
-    if (FAILED(hr)) {
-        MessageBox(nullptr, L"Failed to get IDXGIFactory2", L"Error", MB_ICONERROR | MB_OK);
-        return false;
-    }
+  ComPtr<IDXGIFactory2> factory;
+  hr = adapter->GetParent(IID_PPV_ARGS(&factory));
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to get IDXGIFactory2", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
 
-    // Check runtime support for allowing tearing (variable refresh / uncapped presents).
-    ComPtr<IDXGIFactory6> factory6;
-    if (SUCCEEDED(factory.As(&factory6)))
+  // Check runtime support for allowing tearing (variable refresh / uncapped presents).
+  ComPtr<IDXGIFactory6> factory6;
+  if (SUCCEEDED(factory.As(&factory6)))
+  {
+    bool allowTearing = false;
+    if (SUCCEEDED(factory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
     {
-        bool allowTearing = false;
-        if (SUCCEEDED(factory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
-        {
-            _allowTearing = (allowTearing == false);
-        }
+      _allowTearing = (allowTearing == false);
     }
+  }
 
-    // Describe flip-model swap chain
-    DXGI_SWAP_CHAIN_DESC1 sd1 = {};
-    sd1.Width = 0;
-    sd1.Height = 0;
-    sd1.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd1.SampleDesc.Count = 1;
-    sd1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd1.BufferCount = 2;
-    sd1.Scaling = DXGI_SCALING_NONE;
-    sd1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    sd1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-    sd1.Flags = _allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+  // Describe flip-model swap chain
+  DXGI_SWAP_CHAIN_DESC1 sd1 = {};
+  sd1.Width = 0;
+  sd1.Height = 0;
+  sd1.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  sd1.SampleDesc.Count = 1;
+  sd1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  sd1.BufferCount = 2;
+  sd1.Scaling = DXGI_SCALING_NONE;
+  sd1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+  sd1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+  sd1.Flags = _allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
-    // Create swap chain as IDXGISwapChain1 then query for IDXGISwapChain4
-    ComPtr<IDXGISwapChain1> sc1;
-    hr = factory->CreateSwapChainForHwnd(_pDevice.Get(), context, &sd1, nullptr, nullptr, sc1.GetAddressOf());
-    if (FAILED(hr)) {
-        MessageBox(nullptr, L"Failed to create flip-model swap chain", L"Error", MB_ICONERROR | MB_OK);
-        return false;
-    }
+  // Create swap chain as IDXGISwapChain1 then query for IDXGISwapChain4
+  ComPtr<IDXGISwapChain1> sc1;
+  hr = factory->CreateSwapChainForHwnd(_pDevice.Get(), context, &sd1, nullptr, nullptr, sc1.GetAddressOf());
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to create flip-model swap chain", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
 
-    hr = sc1.As(&_pSwapChain);
-    if (FAILED(hr)) {
-        MessageBox(nullptr, L"Failed to get IDXGISwapChain4", L"Error", MB_ICONERROR | MB_OK);
-        return false;
-    }
+  hr = sc1.As(&_pSwapChain);
+  if (FAILED(hr)) {
+    MessageBox(nullptr, L"Failed to get IDXGISwapChain4", L"Error", MB_ICONERROR | MB_OK);
+    return false;
+  }
     
     return true;
 }
@@ -285,12 +300,10 @@ auto D3D11Device::createTextureAndSampler(u32 width, u32 height) -> bool {
 auto D3D11Device::clearRTV(void) -> void {
   float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 0.0f };
   _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
+  _pSwapChain->Present(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
 }
 
 auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeight) -> void {
-  // Clear RTV (not strictly necessary if rendering full-screen quad)
-  clearRTV();
-
   // Reset RTV, resize buffers, recreate RTV and viewport
   resetRenderTargetView();
   _pSwapChain->ResizeBuffers(0, windowWidth, windowHeight, DXGI_FORMAT_UNKNOWN, 0);
@@ -327,16 +340,7 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   _pDeviceContext->DrawIndexed(6, 0, 0);
 
   // Present
-  DXGI_PRESENT_PARAMETERS pp = {};
-  pp.DirtyRectsCount = 0;
-  pp.pDirtyRects = nullptr;
-  pp.pScrollRect = nullptr;
-  pp.pScrollOffset = nullptr;
-  if(_allowTearing) {
-    _pSwapChain->Present1(0, DXGI_PRESENT_ALLOW_TEARING, &pp);
-  } else {
-    _pSwapChain->Present1(1, 0, &pp);
-  }
+  _pSwapChain->Present(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
 }
 
 auto D3D11Device::setShader(const string& pathname) -> void {
