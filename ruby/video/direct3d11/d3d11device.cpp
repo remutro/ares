@@ -35,7 +35,7 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
         &_pDeviceContext);
 
   if (FAILED(hr)) {
-    MessageBox(nullptr, L"Failed to create D3D11 device and swap chain.", L"Error", MB_ICONERROR | MB_OK);
+    MessageBox(nullptr, L"Failed to create D3D11 device.", L"Error", MB_ICONERROR | MB_OK);
     return false;
   } 
 
@@ -68,7 +68,7 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
     bool allowTearing = false;
     if (SUCCEEDED(factory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
     {
-      _allowTearing = (allowTearing == false);
+      _allowTearing = allowTearing;
     }
   }
 
@@ -85,21 +85,20 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
   sd1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
   sd1.Flags = _allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
-  // Create swap chain as IDXGISwapChain1 then query for IDXGISwapChain4
+  _pSwapChain.Reset();
   ComPtr<IDXGISwapChain1> sc1;
   hr = factory->CreateSwapChainForHwnd(_pDevice.Get(), context, &sd1, nullptr, nullptr, sc1.GetAddressOf());
   if (FAILED(hr)) {
     MessageBox(nullptr, L"Failed to create flip-model swap chain", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
-
   hr = sc1.As(&_pSwapChain);
   if (FAILED(hr)) {
     MessageBox(nullptr, L"Failed to get IDXGISwapChain4", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
-    
-    return true;
+  
+  return true;
 }
 
 auto D3D11Device::createRenderTarget(void) -> bool {
@@ -300,6 +299,11 @@ auto D3D11Device::createTextureAndSampler(u32 width, u32 height) -> bool {
 auto D3D11Device::clearRTV(void) -> void {
   float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 0.0f };
   _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
+  DXGI_PRESENT_PARAMETERS pp = {};
+  pp.DirtyRectsCount = 0;
+  pp.pDirtyRects = nullptr;
+  pp.pScrollRect = nullptr;
+  pp.pScrollOffset = nullptr;
   _pSwapChain->Present(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
 }
 
@@ -340,7 +344,12 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   _pDeviceContext->DrawIndexed(6, 0, 0);
 
   // Present
-  _pSwapChain->Present(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
+  DXGI_PRESENT_PARAMETERS pp = {};
+  pp.DirtyRectsCount = 0;
+  pp.pDirtyRects = nullptr;
+  pp.pScrollRect = nullptr;
+  pp.pScrollOffset = nullptr;
+  _pSwapChain->Present1(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0, &pp);
 }
 
 auto D3D11Device::setShader(const string& pathname) -> void {
