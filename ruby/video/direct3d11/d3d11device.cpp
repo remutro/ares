@@ -34,7 +34,7 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
         &featureLevel,
         &_pDeviceContext);
 
-  if (FAILED(hr)) {
+  if(FAILED(hr)) {
     MessageBox(nullptr, L"Failed to create D3D11 device.", L"Error", MB_ICONERROR | MB_OK);
     return false;
   } 
@@ -42,35 +42,36 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
   // Obtain DXGI factory from device
   ComPtr<IDXGIDevice> dxgiDevice;
   hr = _pDevice.As(&dxgiDevice);
-  if (FAILED(hr)) {
+  if(FAILED(hr)) {
     MessageBox(nullptr, L"Failed to get IDXGIDevice", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
 
   ComPtr<IDXGIAdapter> adapter;
   hr = dxgiDevice->GetAdapter(&adapter);
-  if (FAILED(hr)) {
+  if(FAILED(hr)) {
     MessageBox(nullptr, L"Failed to get IDXGIAdapter", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
 
   ComPtr<IDXGIFactory2> factory;
   hr = adapter->GetParent(IID_PPV_ARGS(&factory));
-  if (FAILED(hr)) {
+  if(FAILED(hr)) {
     MessageBox(nullptr, L"Failed to get IDXGIFactory2", L"Error", MB_ICONERROR | MB_OK);
     return false;
   }
 
   // Check runtime support for allowing tearing (variable refresh / uncapped presents).
   ComPtr<IDXGIFactory6> factory6;
-  if (SUCCEEDED(factory.As(&factory6)))
+  if(SUCCEEDED(factory.As(&factory6)))
   {
-    bool allowTearing = false;
-    if (SUCCEEDED(factory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
+    BOOL allowTearing = FALSE;
+    if(SUCCEEDED(factory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
     {
-      _allowTearing = allowTearing;
+      _allowTearing = (allowTearing == TRUE);
     }
   }
+  if(!_allowTearing) print("D3D11: Warning - Allow tearing is not supported.\n");
 
   // Describe flip-model swap chain
   DXGI_SWAP_CHAIN_DESC1 sd1 = {};
@@ -296,21 +297,24 @@ auto D3D11Device::createTextureAndSampler(u32 width, u32 height) -> bool {
   return true;
 }
 
-auto D3D11Device::clearRTV(void) -> void {
+auto D3D11Device::clearRTV(bool present) -> void {
   float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 0.0f };
   _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
-  DXGI_PRESENT_PARAMETERS pp = {};
-  pp.DirtyRectsCount = 0;
-  pp.pDirtyRects = nullptr;
-  pp.pScrollRect = nullptr;
-  pp.pScrollOffset = nullptr;
-  _pSwapChain->Present(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
+  if(_pSwapChain && present) {
+    DXGI_PRESENT_PARAMETERS pp = {};
+    pp.DirtyRectsCount = 0;
+    pp.pDirtyRects = nullptr;
+    pp.pScrollRect = nullptr;
+    pp.pScrollOffset = nullptr;
+    _pSwapChain->Present(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
+  }
 }
 
 auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeight) -> void {
   // Reset RTV, resize buffers, recreate RTV and viewport
+  clearRTV(false);
   resetRenderTargetView();
-  _pSwapChain->ResizeBuffers(0, windowWidth, windowHeight, DXGI_FORMAT_UNKNOWN, 0);
+  _pSwapChain->ResizeBuffers(2, windowWidth, windowHeight, DXGI_FORMAT_R8G8B8A8_UNORM, 0);
   createRenderTarget();
 
   D3D11_VIEWPORT vp = {};

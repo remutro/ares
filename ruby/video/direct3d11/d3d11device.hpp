@@ -19,7 +19,7 @@ public:
   auto createRenderTarget(void) -> bool;
   auto createTextureAndSampler(u32 width, u32 height) -> bool;
   auto resetRenderTargetView(void) -> void { _pRenderTargetView.Reset(); }
-  auto clearRTV(void) -> void;
+  auto clearRTV(bool present) -> void;
   auto clearBackBuffer(void) -> void { _buffer.clear(); }
   auto render(u32 width, u32 height, u32 windowWidth, u32 windowHeight) -> void;
   auto setShader(const string& pathname) -> void;

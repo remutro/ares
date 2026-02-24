@@ -35,7 +35,7 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto clear() -> void override {
-    if(_device) _device->clearRTV();
+    if(_device) _device->clearRTV(true);
   }
 
   auto size(u32& width, u32& height) -> void override {
