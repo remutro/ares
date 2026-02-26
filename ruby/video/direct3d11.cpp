@@ -35,7 +35,7 @@ struct VideoDirect3D11 : VideoDriver {
   }
 
   auto clear() -> void override {
-    if(_device) _device->clearRTV(true);
+    if(_device) _device->clearRenderTarget(true);
   }
 
   auto size(u32& width, u32& height) -> void override {
@@ -53,7 +53,8 @@ struct VideoDirect3D11 : VideoDriver {
   auto acquire(u32*& data, u32& pitch, u32 width, u32 height) -> bool override {
     if(!_device || width == 0 || height == 0) return false;
 
-    if(!(_device->createTextureAndSampler(width, height))) return false;
+    print("D3D11-acquire() Frame buffer: ", width, "x", height, "\n");
+    if(!(_device->updateTextureAndShaderResource(width, height))) return false;
 
     pitch = _device->getMappedResource().RowPitch;
     return data = (u32*)(_device->getMappedResource().pData);
@@ -64,6 +65,9 @@ struct VideoDirect3D11 : VideoDriver {
 
     u32 windowWidth = 0, windowHeight = 0;
     size(windowWidth, windowHeight);
+
+    print("D3D11-output() Output size: ", width, "x", height, "\n");
+    print("D3D11-output() Window size: ", windowWidth, "x", windowHeight, "\n\n");
     _device->render(width, height, windowWidth, windowHeight);
   }
 
