@@ -15,10 +15,11 @@ public:
   D3D11Device() {};
   ~D3D11Device() {};
 
-  auto initialize(HWND context) -> bool;
+  auto initialize(HWND context, bool blocking) -> bool;
+  auto shutdown(void) -> void;
   auto createRenderTarget(void) -> bool;
   auto updateTextureAndShaderResource(u32 width, u32 height) -> bool;
-  auto resetRenderTargetView(void) -> void { _pRenderTargetView.Reset(); }
+  auto resetRenderTargetView(void) -> void { if(_pRenderTargetView) _pRenderTargetView.Reset(); }
   auto clearRenderTarget(bool present) -> void;
   auto clearBackBuffer(void) -> void { _buffer.clear(); }
   auto render(u32 width, u32 height, u32 windowWidth, u32 windowHeight) -> void;
@@ -27,7 +28,7 @@ public:
 
 private:
 
-  auto createDeviceAndSwapChain(HWND context) -> bool;
+  auto createDeviceAndSwapChain(HWND context, bool blocking) -> bool;
   auto compileShaders(void) -> bool;
   auto createGeometry(void) -> bool;
   auto createSamplerState(void) -> bool;
@@ -36,7 +37,8 @@ private:
   
   ComPtr<ID3D11Device>               _pDevice;
   ComPtr<ID3D11DeviceContext>        _pDeviceContext;
-  ComPtr<IDXGISwapChain1>            _pSwapChain;
+  ComPtr<IDXGIFactory2>              _dxgiFactory2;
+  ComPtr<IDXGISwapChain1>            _pSwapChain1;
   ComPtr<ID3D11RenderTargetView>     _pRenderTargetView;
   ComPtr<ID3D11VertexShader>         _pVertexShader;
   ComPtr<ID3D11PixelShader>          _pPixelShader;
@@ -48,7 +50,8 @@ private:
 
   std::vector<uint32_t> _buffer;
   D3D11_MAPPED_SUBRESOURCE _mapped;
-  bool _allowTearing = false;
+  bool _vsyncEnabled = false;
+  bool _tearingSupport = false;
   struct Vertex { float x, y, z; float u, v; };
 
   libra_instance_t _libra;

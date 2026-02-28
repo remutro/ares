@@ -25,7 +25,7 @@ struct VideoDirect3D11 : VideoDriver {
   auto setFullScreen(bool fullScreen) -> bool override { return initialize(); }
   auto setMonitor(string monitor) -> bool override { return initialize(); }
   auto setContext(uintptr context) -> bool override { return initialize(); }
-  auto setBlocking(bool blocking) -> bool override { return initialize(); }
+  auto setBlocking(bool blocking) -> bool override { _blocking = blocking; return initialize(); }
   auto setShader(string shader) -> bool override { return updateFilter(); }
 
   auto focused() -> bool override {
@@ -53,7 +53,6 @@ struct VideoDirect3D11 : VideoDriver {
   auto acquire(u32*& data, u32& pitch, u32 width, u32 height) -> bool override {
     if(!_device || width == 0 || height == 0) return false;
 
-    print("D3D11-acquire() Frame buffer: ", width, "x", height, "\n");
     if(!(_device->updateTextureAndShaderResource(width, height))) return false;
 
     pitch = _device->getMappedResource().RowPitch;
@@ -65,9 +64,6 @@ struct VideoDirect3D11 : VideoDriver {
 
     u32 windowWidth = 0, windowHeight = 0;
     size(windowWidth, windowHeight);
-
-    print("D3D11-output() Output size: ", width, "x", height, "\n");
-    print("D3D11-output() Window size: ", windowWidth, "x", windowHeight, "\n\n");
     _device->render(width, height, windowWidth, windowHeight);
   }
 
@@ -104,24 +100,21 @@ private:
     if(!self.fullScreen && !self.context) return false;
 
     auto monitor = Video::monitor(self.monitor);
-    _monitorX = monitor.x;
-    _monitorY = monitor.y;
     _monitorWidth = monitor.width;
     _monitorHeight = monitor.height;
-
     if(self.fullScreen) {
-      _context = _window = CreateWindowEx(WS_EX_TOPMOST, L"VideoDirect3D11_Window", L"", WS_VISIBLE | WS_POPUP,
-        _monitorX, _monitorY, _monitorWidth, _monitorHeight,
-        nullptr, nullptr, GetModuleHandle(0), nullptr);
+      _context = _window = CreateWindowEx(WS_EX_NOACTIVATE, L"VideoDirect3D11_Window", L"", WS_VISIBLE | WS_POPUP | WS_DISABLED,
+        monitor.x, monitor.y, _monitorWidth, _monitorHeight,
+        (HWND)self.context, nullptr, GetModuleHandle(0), nullptr);
     } else {
       _context = (HWND)self.context;
     }
 
-    return _device->initialize(_context);
+    return _device->initialize(_context, _blocking);
   }
   
   auto terminate() -> void {
-    if(_device) _device->resetRenderTargetView();
+    if(_device) { _device->shutdown(); }
     if(_window) { DestroyWindow(_window); _window = nullptr; }
     _context = nullptr;
   }
@@ -129,9 +122,7 @@ private:
   PD3D11Device _device = nullptr;
   HWND _window = nullptr;
   HWND _context = nullptr;
-
-  s32 _monitorX = 0;
-  s32 _monitorY = 0;
   s32 _monitorWidth = 0;
   s32 _monitorHeight = 0;
+  bool _blocking = false;
 };

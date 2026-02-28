@@ -1,6 +1,6 @@
 
-auto D3D11Device::initialize(HWND context) -> bool {
-  if(!createDeviceAndSwapChain(context)) return false;
+auto D3D11Device::initialize(HWND context, bool blocking) -> bool {
+  if(!createDeviceAndSwapChain(context, blocking)) return false;
   if(!createRenderTarget()) return false;
   if(!compileShaders()) return false;
   if(!createGeometry()) return false;
@@ -14,13 +14,22 @@ auto D3D11Device::initialize(HWND context) -> bool {
     return true;
 }
 
-auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
+auto D3D11Device::shutdown(void) -> void {
+  resetRenderTargetView();
+  if(_pDeviceContext) { 
+    _pDeviceContext->ClearState(); 
+    _pDeviceContext->Flush();
+  }
+  if(_pSwapChain1) _pSwapChain1->SetFullscreenState(false, nullptr);
+}
+
+auto D3D11Device::createDeviceAndSwapChain(HWND context, bool blocking) -> bool {
   u32 createFlags = 0;
 #if defined(_DEBUG)
   createFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-  D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
+  D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
   D3D_FEATURE_LEVEL featureLevel;
   hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, createFlags, featureLevels, ARRAYSIZE(featureLevels),
                           D3D11_SDK_VERSION, &_pDevice, &featureLevel, &_pDeviceContext);
@@ -29,26 +38,25 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
     return false;
   }
 
-  ComPtr<IDXGIFactory2> factory;
-  { // Obtain DXGI factory from device
-    ComPtr<IDXGIDevice> dxgiDevice;
-    _pDevice.As(&dxgiDevice);
-    ComPtr<IDXGIAdapter> adapter;
-    dxgiDevice->GetAdapter(&adapter);
-    adapter->GetParent(IID_PPV_ARGS(&factory));
-    if(factory) {
-      // Check runtime support for allowing tearing (variable refresh / uncapped presents).
-      ComPtr<IDXGIFactory6> factory6;
-      if(SUCCEEDED(factory.As(&factory6))) {
-        BOOL allowTearing = FALSE;
-        if(SUCCEEDED(factory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing)))) {
-          _allowTearing = (allowTearing == TRUE);
-        }
+  // Obtain DXGI factory from device
+  ComPtr<IDXGIDevice> dxgiDevice;
+  _pDevice.As(&dxgiDevice);
+  ComPtr<IDXGIAdapter> dxgiAdapter;
+  dxgiDevice->GetAdapter(&dxgiAdapter);
+  dxgiAdapter->GetParent(IID_PPV_ARGS(&_dxgiFactory2));
+  if(_dxgiFactory2) {
+    // Check runtime support for allowing tearing (variable refresh / uncapped presents)
+    ComPtr<IDXGIFactory6> dxgiFactory6;
+    if(SUCCEEDED(_dxgiFactory2.As(&dxgiFactory6))) {
+      BOOL allowTearing = FALSE;
+      if(SUCCEEDED(dxgiFactory6->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing)))) {
+        _tearingSupport = (allowTearing == TRUE);
       }
     }
-    if(!_allowTearing) print("D3D11: Warning - allow tearing is not supported.\n");
   }
-  
+  if(!_tearingSupport) print("D3D11: Warning - allow tearing is not supported, VRR is not available\n");
+  _vsyncEnabled = blocking;
+      
   // Describe flip-model swap chain
   DXGI_SWAP_CHAIN_DESC1 sd1 = {};
   sd1.Width = 0;
@@ -62,9 +70,10 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
   sd1.Scaling = DXGI_SCALING_NONE;
   sd1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
   sd1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-  sd1.Flags = _allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+  sd1.Flags = _tearingSupport ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
-  hr = factory->CreateSwapChainForHwnd(_pDevice.Get(), context, &sd1, nullptr, nullptr, _pSwapChain.GetAddressOf());
+  if(_pSwapChain1) _pSwapChain1->Release();
+  hr = _dxgiFactory2->CreateSwapChainForHwnd(_pDevice.Get(), context, &sd1, nullptr, nullptr, _pSwapChain1.GetAddressOf());
   if(FAILED(hr)) {
     print("D3D11: Failed to create flip-model swap chain - 0x", hex(hr), "\n");
     return false;
@@ -74,9 +83,8 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context) -> bool {
 }
 
 auto D3D11Device::createRenderTarget(void) -> bool {
-
   ComPtr<ID3D11Texture2D> backBuffer;
-  hr = _pSwapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+  hr = _pSwapChain1->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
   if(FAILED(hr)) {
     print("D3D11: Failed getting back buffer for render target - 0x", hex(hr), "\n");
     return false;
@@ -92,7 +100,6 @@ auto D3D11Device::createRenderTarget(void) -> bool {
 }
 
 auto D3D11Device::compileShaders(void) -> bool {
-
   // Simple vertex shader + pixel shader. Vertex shader passes UV; pixel shader samples a texture.
   const char* pVSSrc =
     "struct VSInput { float3 pos : POSITION; float2 uv : TEXCOORD0; };"
@@ -194,7 +201,6 @@ auto D3D11Device::createGeometry(void) -> bool {
 }
 
 auto D3D11Device::createSamplerState() -> bool {
-
   D3D11_SAMPLER_DESC sd = {};
   sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
   sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -213,7 +219,6 @@ auto D3D11Device::createSamplerState() -> bool {
 }
 
 auto D3D11Device::updateTextureAndShaderResource(u32 width, u32 height) -> bool {
-
   D3D11_TEXTURE2D_DESC td = {};
   td.Width = width;
   td.Height = height;
@@ -247,7 +252,7 @@ auto D3D11Device::updateTextureAndShaderResource(u32 width, u32 height) -> bool 
   uint8_t* dest = reinterpret_cast<uint8_t*>(_mapped.pData);
   uint8_t* src = reinterpret_cast<uint8_t*>(_buffer.data());
   for(int y = 0; y < height; ++y) {
-      memcpy(dest + y * _mapped.RowPitch, src + y * width * 4, width * 4);
+    memcpy(dest + y * _mapped.RowPitch, src + y * width * 4, width * 4);
   }
   _pDeviceContext->Unmap(tex.Get(), 0);
 
@@ -267,31 +272,34 @@ auto D3D11Device::updateTextureAndShaderResource(u32 width, u32 height) -> bool 
 }
 
 auto D3D11Device::clearRenderTarget(bool present) -> void {
-  float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-  _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
-  if(_pSwapChain && present) {
-    DXGI_PRESENT_PARAMETERS pp = {};
-    pp.DirtyRectsCount = 0;
-    pp.pDirtyRects = nullptr;
-    pp.pScrollRect = nullptr;
-    pp.pScrollOffset = nullptr;
-    _pSwapChain->Present1(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0, &pp);
+  float colorRGBABlack[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+  if(_pDeviceContext) _pDeviceContext->ClearRenderTargetView(_pRenderTargetView.Get(), colorRGBABlack);
+  if(_pSwapChain1 && present) {
+    DXGI_SWAP_CHAIN_DESC1 sd1 = {};
+    _pSwapChain1->GetDesc1(&sd1);
+    DXGI_PRESENT_PARAMETERS pp = { 0 };
+    u32 flags = 0;
+    if(!_vsyncEnabled) flags = sd1.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING ? DXGI_PRESENT_ALLOW_TEARING : 0;
+    _pSwapChain1->Present1(_vsyncEnabled ? 1 : 0, flags, &pp);
   }
 }
 
 auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeight) -> void {
-  // Reset render target view
-  clearRenderTarget(false);
-  
-  u32 offsetX = (windowWidth - width) / 2, offsetY = (windowHeight - height) / 2;
+  u32 offsetX = (windowWidth > width) ? ((windowWidth - width) / 2) : 0;
+  u32 offsetY = (windowHeight > height) ? ((windowHeight - height) / 2) : 0;
   u32 bufferWidth = width + offsetX, bufferHeight = height + offsetY;
+
   DXGI_SWAP_CHAIN_DESC1 sd1 = {};
-  _pSwapChain->GetDesc1(&sd1);
+  if(!_pSwapChain1) {
+    clearRenderTarget(true);
+    return;
+  }
+  _pSwapChain1->GetDesc1(&sd1);
   if(sd1.Width != bufferWidth || sd1.Height != bufferHeight) {
+    clearRenderTarget(false);
     resetRenderTargetView();
-    // Resize buffers
-    hr = _pSwapChain->ResizeBuffers(sd1.BufferCount, bufferWidth, bufferHeight, sd1.Format, sd1.Flags);
-    if(FAILED(hr)) print("D3D11: Failed to resize buffers - 0x", hex(hr), "\n"); 
+    hr = _pSwapChain1->ResizeBuffers(sd1.BufferCount, bufferWidth, bufferHeight, sd1.Format, sd1.Flags);
+    if(FAILED(hr)) { print("D3D11: Failed to resize buffers - 0x", hex(hr), "\n"); return; }
     createRenderTarget();
   }
   _pDeviceContext->OMSetRenderTargets(1, _pRenderTargetView.GetAddressOf(), nullptr);
@@ -318,7 +326,6 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   _pDeviceContext->PSSetShader(_pPixelShader.Get(), nullptr, 0);
 
   // Shader Resource View / Sampler
-
   _pDeviceContext->PSSetShaderResources(0, 1, _pShaderResourceView.GetAddressOf());
   _pDeviceContext->PSSetSamplers(0, 1, _pSamplerState.GetAddressOf());
 
@@ -326,12 +333,10 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   _pDeviceContext->DrawIndexed(6, 0, 0);
 
   // Present
-  DXGI_PRESENT_PARAMETERS pp = {};
-  pp.DirtyRectsCount = 0;
-  pp.pDirtyRects = nullptr;
-  pp.pScrollRect = nullptr;
-  pp.pScrollOffset = nullptr;
-  if(_pSwapChain) _pSwapChain->Present1(0, _allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0, &pp);
+  DXGI_PRESENT_PARAMETERS pp = { 0 };
+  u32 flags = 0;
+  if(!_vsyncEnabled) flags = sd1.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING ? DXGI_PRESENT_ALLOW_TEARING : 0;
+  _pSwapChain1->Present1(_vsyncEnabled ? 1 : 0, flags, &pp);
 }
 
 auto D3D11Device::setShader(const string& pathname) -> void {
