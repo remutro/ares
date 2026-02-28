@@ -20,7 +20,6 @@ auto D3D11Device::shutdown(void) -> void {
     _pDeviceContext->ClearState(); 
     _pDeviceContext->Flush();
   }
-  if(_pSwapChain1) _pSwapChain1->SetFullscreenState(false, nullptr);
 }
 
 auto D3D11Device::createDeviceAndSwapChain(HWND context, bool blocking) -> bool {
