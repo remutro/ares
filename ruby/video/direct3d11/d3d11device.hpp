@@ -52,9 +52,11 @@ private:
   D3D11_MAPPED_SUBRESOURCE _mapped;
   bool _vsyncEnabled = false;
   bool _tearingSupport = false;
+  size_t _frameCount = 0;
+  string _shader;
   struct Vertex { float x, y, z; float u, v; };
 
   libra_instance_t _libra;
-  libra_shader_preset_t _preset = nullptr;
-  libra_d3d11_filter_chain_t _chain = nullptr;
+  libra_shader_preset_t _shaderPreset = nullptr;
+  libra_d3d11_filter_chain_t _filterChain = nullptr;
 };
