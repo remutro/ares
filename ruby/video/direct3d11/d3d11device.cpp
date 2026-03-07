@@ -15,8 +15,15 @@ auto D3D11Device::initialize(HWND context, bool blocking) -> bool {
 }
 
 auto D3D11Device::shutdown(void) -> void {
+  clearRenderTarget(true);
   resetRenderTargetView();
-  if(_pDeviceContext) { 
+  if(_pSwapChain1) {
+    /*HWND pHwnd = nullptr;
+    _pSwapChain1->GetHwnd(&pHwnd);
+    if(pHwnd) DestroyWindow(pHwnd);
+    pHwnd = nullptr;*/
+  }
+  if(_pDeviceContext) {
     _pDeviceContext->ClearState(); 
     _pDeviceContext->Flush();
   }
@@ -330,32 +337,37 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
 
   // Draw
   _pDeviceContext->DrawIndexed(6, 0, 0);
-/*
+
   // Apply Shader
-  ComPtr<ID3D11Texture2D> frameBufferCopy;
-  //ComPtr<ID3D11ShaderResourceView> srvCopy;
-  {
-    ComPtr<ID3D11Texture2D> d3d11FrameBuffer;
-    hr = _pSwapChain1->GetBuffer(0, __uuidof(ID3D11Texture2D), &d3d11FrameBuffer);
-    if(FAILED(hr)) { print("D3D11: Failed to get frame buffer - 0x", hex(hr), "\n"); return; }
+  /*if(_shader != "") {
+    ComPtr<ID3D11Texture2D> frameBufferCopy;
+    ComPtr<ID3D11ShaderResourceView> srvCopy;
+    {
+      ComPtr<ID3D11Texture2D> d3d11FrameBuffer;
+      hr = _pSwapChain1->GetBuffer(0, __uuidof(ID3D11Texture2D), &d3d11FrameBuffer);
+      if(FAILED(hr)) { print("D3D11: Failed to get frame buffer - 0x", hex(hr), "\n"); return; }
 
-    D3D11_TEXTURE2D_DESC frameBufferDesc;
-    d3d11FrameBuffer->GetDesc(&frameBufferDesc);
+      D3D11_TEXTURE2D_DESC frameBufferDesc;
+      d3d11FrameBuffer->GetDesc(&frameBufferDesc);
 
-    frameBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-    frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_READ;
+      frameBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+      frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_READ;
 
-    hr = _pDevice->CreateTexture2D(&frameBufferDesc, nullptr, &frameBufferCopy);
-    if(FAILED(hr)) { print("D3D11: Failed to create 2D texture - 0x", hex(hr), "\n"); return; }
+      hr = _pDevice->CreateTexture2D(&frameBufferDesc, nullptr, &frameBufferCopy);
+      if(FAILED(hr)) { print("D3D11: Failed to create 2D texture - 0x", hex(hr), "\n"); return; }
 
-    _pDeviceContext->CopyResource(frameBufferCopy.Get(), d3d11FrameBuffer.Get());
-    //hr = _pDevice->CreateShaderResourceView(frameBufferCopy.Get(), 0, &srvCopy);
-    if(FAILED(hr)) { print("D3D11: Failed to create SRV copy - 0x", hex(hr), "\n"); return; }
-  }
-*/
-  //if(!srvCopy) return;
-  _libra.d3d11_filter_chain_frame(&_filterChain, NULL, _frameCount, _pShaderResourceView.Get(), 
-                                  _pRenderTargetView.Get(), NULL, NULL, NULL);
+      _pDeviceContext->CopyResource(frameBufferCopy.Get(), d3d11FrameBuffer.Get());
+      hr = _pDevice->CreateShaderResourceView(frameBufferCopy.Get(), 0, &srvCopy);
+      if(FAILED(hr)) { print("D3D11: Failed to create SRV copy - 0x", hex(hr), "\n"); return; }
+    }
+
+    if(!srvCopy) return;
+    if(auto error = _libra.d3d11_filter_chain_frame(&_filterChain, nullptr, _frameCount, srvCopy.Get(), 
+                                                  _pRenderTargetView.Get(), nullptr, nullptr, nullptr)) {
+      print("libra render failed\n");
+      _libra.error_print(error);
+    }
+  }*/
   
   // Present
   DXGI_PRESENT_PARAMETERS pp = { 0 };
@@ -366,23 +378,24 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
 }
 
 auto D3D11Device::setShader(const string& pathname) -> void {
-  if(_filterChain != NULL) {
+  if(_filterChain != nullptr) {
     _libra.d3d11_filter_chain_free(&_filterChain);
   }
 
-  if(_shaderPreset != NULL) {
+  if(_shaderPreset != nullptr) {
     _libra.preset_free(&_shaderPreset);
   }
 
   if(file::exists(pathname)) {
     _shader = pathname;
-    if(_libra.preset_create(pathname.data(), &_shaderPreset) != NULL) {
+    print("setShader: ", _shader, "\n");
+    if(_libra.preset_create(pathname.data(), &_shaderPreset) != nullptr) {
       print(string{"D3D11Device: Failed to load shader: ", pathname, "\n"});
       setShader("");
       return;
     }
     
-    if(auto error = _libra.d3d11_filter_chain_create(&_shaderPreset, _pDevice.Get(), NULL, &_filterChain)) {
+    if(auto error = _libra.d3d11_filter_chain_create(&_shaderPreset, _pDevice.Get(), nullptr, &_filterChain)) {
       print(string{"D3D11Device: Failed to create filter chain for: ", pathname, "\n"});
       _libra.error_print(error);
       setShader("");
