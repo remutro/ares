@@ -24,6 +24,7 @@ public:
   auto clearBackBuffer(void) -> void { _buffer.clear(); }
   auto render(u32 width, u32 height, u32 windowWidth, u32 windowHeight) -> void;
   auto setShader(const string& pathname) -> void;
+  auto applyShader(void) -> void;
   auto getMappedResource(void) -> D3D11_MAPPED_SUBRESOURCE& { return _mapped; }
 
 private:

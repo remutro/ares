@@ -18,15 +18,18 @@ auto D3D11Device::shutdown(void) -> void {
   clearRenderTarget(true);
   resetRenderTargetView();
   if(_pSwapChain1) {
-    /*HWND pHwnd = nullptr;
+    HWND pHwnd = nullptr;
     _pSwapChain1->GetHwnd(&pHwnd);
-    if(pHwnd) DestroyWindow(pHwnd);
-    pHwnd = nullptr;*/
+    //if(pHwnd) DestroyWindow(pHwnd);
+    pHwnd = nullptr;
+    _pSwapChain1.Reset();
   }
   if(_pDeviceContext) {
     _pDeviceContext->ClearState(); 
     _pDeviceContext->Flush();
+    _pDeviceContext.Reset();
   }
+  if(_pDevice) _pDevice.Reset();
 }
 
 auto D3D11Device::createDeviceAndSwapChain(HWND context, bool blocking) -> bool {
@@ -339,35 +342,7 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   _pDeviceContext->DrawIndexed(6, 0, 0);
 
   // Apply Shader
-  /*if(_shader != "") {
-    ComPtr<ID3D11Texture2D> frameBufferCopy;
-    ComPtr<ID3D11ShaderResourceView> srvCopy;
-    {
-      ComPtr<ID3D11Texture2D> d3d11FrameBuffer;
-      hr = _pSwapChain1->GetBuffer(0, __uuidof(ID3D11Texture2D), &d3d11FrameBuffer);
-      if(FAILED(hr)) { print("D3D11: Failed to get frame buffer - 0x", hex(hr), "\n"); return; }
-
-      D3D11_TEXTURE2D_DESC frameBufferDesc;
-      d3d11FrameBuffer->GetDesc(&frameBufferDesc);
-
-      frameBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-      frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_READ;
-
-      hr = _pDevice->CreateTexture2D(&frameBufferDesc, nullptr, &frameBufferCopy);
-      if(FAILED(hr)) { print("D3D11: Failed to create 2D texture - 0x", hex(hr), "\n"); return; }
-
-      _pDeviceContext->CopyResource(frameBufferCopy.Get(), d3d11FrameBuffer.Get());
-      hr = _pDevice->CreateShaderResourceView(frameBufferCopy.Get(), 0, &srvCopy);
-      if(FAILED(hr)) { print("D3D11: Failed to create SRV copy - 0x", hex(hr), "\n"); return; }
-    }
-
-    if(!srvCopy) return;
-    if(auto error = _libra.d3d11_filter_chain_frame(&_filterChain, nullptr, _frameCount, srvCopy.Get(), 
-                                                  _pRenderTargetView.Get(), nullptr, nullptr, nullptr)) {
-      print("libra render failed\n");
-      _libra.error_print(error);
-    }
-  }*/
+  if(_shader != "") applyShader();
   
   // Present
   DXGI_PRESENT_PARAMETERS pp = { 0 };
@@ -375,6 +350,35 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   if(!_vsyncEnabled) flags = sd1.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING ? DXGI_PRESENT_ALLOW_TEARING : 0;
   _pSwapChain1->Present1(_vsyncEnabled ? 1 : 0, flags, &pp);
   _frameCount++;
+}
+
+auto D3D11Device::applyShader(void) -> void {
+  ComPtr<ID3D11Texture2D> frameBufferCopy;
+  ComPtr<ID3D11ShaderResourceView> srvCopy;
+  ComPtr<ID3D11Texture2D> d3d11FrameBuffer;
+  
+  hr = _pSwapChain1->GetBuffer(0, __uuidof(ID3D11Texture2D), &d3d11FrameBuffer);
+  if(FAILED(hr)) { print("D3D11: Failed to get frame buffer - 0x", hex(hr), "\n"); return; }
+
+  D3D11_TEXTURE2D_DESC frameBufferDesc;
+  d3d11FrameBuffer->GetDesc(&frameBufferDesc);
+
+  frameBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+  frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_READ;
+
+  hr = _pDevice->CreateTexture2D(&frameBufferDesc, nullptr, &frameBufferCopy);
+  if(FAILED(hr)) { print("D3D11: Failed to create 2D texture - 0x", hex(hr), "\n"); return; }
+
+  _pDeviceContext->CopyResource(frameBufferCopy.Get(), d3d11FrameBuffer.Get());
+  hr = _pDevice->CreateShaderResourceView(frameBufferCopy.Get(), 0, &srvCopy);
+  if(FAILED(hr)) { print("D3D11: Failed to create SRV copy - 0x", hex(hr), "\n"); return; }
+
+  if(!srvCopy) return;
+  if(auto error = _libra.d3d11_filter_chain_frame(&_filterChain, nullptr, _frameCount, srvCopy.Get(), 
+                                                  _pRenderTargetView.Get(), nullptr, nullptr, nullptr)) {
+    print("libra render failed\n");
+    _libra.error_print(error);
+  }
 }
 
 auto D3D11Device::setShader(const string& pathname) -> void {
@@ -401,5 +405,7 @@ auto D3D11Device::setShader(const string& pathname) -> void {
       setShader("");
       return;
     }
+  } else {
+    _shader = "";
   }
 }

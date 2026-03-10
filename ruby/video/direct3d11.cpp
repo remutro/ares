@@ -102,8 +102,8 @@ private:
     _monitorHeight = monitor.height;
     if(self.fullScreen) {
       _context = _window = CreateWindowEx(WS_EX_NOACTIVATE, L"VideoDirect3D11_Window", L"", WS_VISIBLE | WS_POPUP | WS_DISABLED,
-        monitor.x, monitor.y, _monitorWidth, _monitorHeight,
-        (HWND)self.context, nullptr, GetModuleHandle(0), nullptr);
+                                          monitor.x, monitor.y, _monitorWidth, _monitorHeight,
+                                          (HWND)self.context, nullptr, GetModuleHandle(0), nullptr);
     } else {
       _context = (HWND)self.context;
     }
