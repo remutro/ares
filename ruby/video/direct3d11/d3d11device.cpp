@@ -81,7 +81,7 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context, bool blocking) -> bool 
   sd1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
   sd1.Flags = _tearingSupport ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
-  if(_pSwapChain1) _pSwapChain1->Release();
+  if(_pSwapChain1) _pSwapChain1.Reset();
   hr = _dxgiFactory2->CreateSwapChainForHwnd(_pDevice.Get(), context, &sd1, nullptr, nullptr, _pSwapChain1.GetAddressOf());
   if(FAILED(hr)) {
     print("D3D11: Failed to create flip-model swap chain - 0x", hex(hr), "\n");
@@ -106,6 +106,11 @@ auto D3D11Device::createRenderTarget(void) -> bool {
   }
   
  return true;
+}
+
+auto D3D11Device::resetRenderTargetView(void) -> void { 
+  if(_pRenderTargetView) _pRenderTargetView.Reset(); 
+  if(_pDeviceContext) _pDeviceContext->OMSetRenderTargets(0, nullptr, nullptr); 
 }
 
 auto D3D11Device::compileShaders(void) -> bool {
@@ -276,7 +281,7 @@ auto D3D11Device::updateTextureAndShaderResource(u32 width, u32 height) -> bool 
     print("D3D11: Failed to create shader resource view - 0x", hex(hr), "\n");
     return false;
   }
-  
+
   return true;
 }
 
@@ -306,6 +311,7 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   _pSwapChain1->GetDesc1(&sd1);
   if(sd1.Width != bufferWidth || sd1.Height != bufferHeight) {
     clearRenderTarget(false);
+    _pDeviceContext->OMSetRenderTargets(0, nullptr, nullptr);
     resetRenderTargetView();
     hr = _pSwapChain1->ResizeBuffers(sd1.BufferCount, bufferWidth, bufferHeight, sd1.Format, sd1.Flags);
     if(FAILED(hr)) { print("D3D11: Failed to resize buffers - 0x", hex(hr), "\n"); return; }
@@ -364,13 +370,13 @@ auto D3D11Device::applyShader(void) -> void {
   d3d11FrameBuffer->GetDesc(&frameBufferDesc);
 
   frameBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-  frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_READ;
+  frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
 
   hr = _pDevice->CreateTexture2D(&frameBufferDesc, nullptr, &frameBufferCopy);
   if(FAILED(hr)) { print("D3D11: Failed to create 2D texture - 0x", hex(hr), "\n"); return; }
 
   _pDeviceContext->CopyResource(frameBufferCopy.Get(), d3d11FrameBuffer.Get());
-  hr = _pDevice->CreateShaderResourceView(frameBufferCopy.Get(), 0, &srvCopy);
+  hr = _pDevice->CreateShaderResourceView(frameBufferCopy.Get(), 0, srvCopy.GetAddressOf());
   if(FAILED(hr)) { print("D3D11: Failed to create SRV copy - 0x", hex(hr), "\n"); return; }
 
   if(!srvCopy) return;

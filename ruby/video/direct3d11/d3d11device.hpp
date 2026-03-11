@@ -19,13 +19,12 @@ public:
   auto shutdown(void) -> void;
   auto createRenderTarget(void) -> bool;
   auto updateTextureAndShaderResource(u32 width, u32 height) -> bool;
-  auto resetRenderTargetView(void) -> void { if(_pRenderTargetView) _pRenderTargetView.Reset(); }
+  auto resetRenderTargetView(void) -> void;
   auto clearRenderTarget(bool present) -> void;
-  auto clearBackBuffer(void) -> void { _buffer.clear(); }
   auto render(u32 width, u32 height, u32 windowWidth, u32 windowHeight) -> void;
   auto setShader(const string& pathname) -> void;
   auto applyShader(void) -> void;
-  auto getMappedResource(void) -> D3D11_MAPPED_SUBRESOURCE& { return _mapped; }
+  auto getMappedResource(void) -> const D3D11_MAPPED_SUBRESOURCE& { return _mapped; }
 
 private:
 
