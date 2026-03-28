@@ -15,6 +15,8 @@ auto D3D11Device::initialize(HWND context, bool blocking) -> bool {
 }
 
 auto D3D11Device::shutdown(void) -> void {
+  if(_filterChain != nullptr) _libra.d3d11_filter_chain_free(&_filterChain);
+  if(_shaderPreset != nullptr) _libra.preset_free(&_shaderPreset);
   clearRenderTarget(true);
   resetRenderTargetView();
   if(_pSwapChain1) {
@@ -34,7 +36,7 @@ auto D3D11Device::shutdown(void) -> void {
 
 auto D3D11Device::createDeviceAndSwapChain(HWND context, bool blocking) -> bool {
   u32 createFlags = 0;
-#if defined(_DEBUG)
+#if defined(DEBUG_BUILD)
   createFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
@@ -47,11 +49,32 @@ auto D3D11Device::createDeviceAndSwapChain(HWND context, bool blocking) -> bool 
     return false;
   }
 
+  #ifdef DEBUG_BUILD
+    // Set up debug layer to break on D3D11 errors
+    ID3D11Debug* d3dDebug = nullptr;
+    _pDevice->QueryInterface(__uuidof(ID3D11Debug), (void**)&d3dDebug);
+    if (d3dDebug) {
+        ID3D11InfoQueue* d3dInfoQueue = nullptr;
+        if (SUCCEEDED(d3dDebug->QueryInterface(__uuidof(ID3D11InfoQueue),
+                                               (void**)&d3dInfoQueue))) {
+            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION,
+                                             true);
+            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR,
+                                             true);
+            d3dInfoQueue->Release();
+        }
+        d3dDebug->Release();
+    }
+  #endif
+
   // Obtain DXGI factory from device
   ComPtr<IDXGIDevice> dxgiDevice;
   _pDevice.As(&dxgiDevice);
   ComPtr<IDXGIAdapter> dxgiAdapter;
   dxgiDevice->GetAdapter(&dxgiAdapter);
+  DXGI_ADAPTER_DESC adapterDesc;
+  dxgiAdapter->GetDesc(&adapterDesc);
+  print("Direct3D11 Graphics Device: ", (const char*)utf8_t(adapterDesc.Description), ", VRAM: ", adapterDesc.DedicatedVideoMemory, "\n");
   dxgiAdapter->GetParent(IID_PPV_ARGS(&_dxgiFactory2));
   if(_dxgiFactory2) {
     // Check runtime support for allowing tearing (variable refresh / uncapped presents)
@@ -370,7 +393,7 @@ auto D3D11Device::applyShader(void) -> void {
   d3d11FrameBuffer->GetDesc(&frameBufferDesc);
 
   frameBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-  frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
+  frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
   hr = _pDevice->CreateTexture2D(&frameBufferDesc, nullptr, &frameBufferCopy);
   if(FAILED(hr)) { print("D3D11: Failed to create 2D texture - 0x", hex(hr), "\n"); return; }
@@ -380,8 +403,10 @@ auto D3D11Device::applyShader(void) -> void {
   if(FAILED(hr)) { print("D3D11: Failed to create SRV copy - 0x", hex(hr), "\n"); return; }
 
   if(!srvCopy) return;
-  if(auto error = _libra.d3d11_filter_chain_frame(&_filterChain, nullptr, _frameCount, srvCopy.Get(), 
-                                                  _pRenderTargetView.Get(), nullptr, nullptr, nullptr)) {
+
+  frame_d3d11_opt_t frame_opt = { .clear_history = false, .frame_direction = -1 };
+  if(auto error = _libra.d3d11_filter_chain_frame(&_filterChain, _pDeviceContext.Get(), _frameCount, srvCopy.Get(),
+                                                  _pRenderTargetView.Get(), nullptr, nullptr, &frame_opt)) {
     print("libra render failed\n");
     _libra.error_print(error);
   }
@@ -413,5 +438,6 @@ auto D3D11Device::setShader(const string& pathname) -> void {
     }
   } else {
     _shader = "";
+    print("setShader: None\n");
   }
 }
