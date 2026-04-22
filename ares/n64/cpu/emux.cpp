@@ -11,6 +11,7 @@ auto CPU::ProfileSlot::global() -> ProfileSlot
 auto CPU::XDETECT(r64& rd, u64 code) -> void {
   if(!system.homebrewMode) return;
   n64 detect = 0;
+  n64 ioctl = 0;
   detect.bit(0x20) = 1;  // XDETECT
   detect.bit(0x25) = 1;  // XLOG
   detect.bit(0x27) = 1;  // XHEXDUMP
@@ -18,9 +19,13 @@ auto CPU::XDETECT(r64& rd, u64 code) -> void {
   detect.bit(0x29) = 1;  // XPROFREAD
   detect.bit(0x2a) = 1;  // XEXCEPTION
   detect.bit(0x2c) = 1;  // XIOCTL
+  ioctl.bit(0x01) = 1;   // XIOCTL exit
+  ioctl.bit(0x02) = 1;   // XIOCTL fast
+  ioctl.bit(0x03) = 1;   // XIOCTL slow
   switch(code) {
   case 0x00: rd.s64 = (s32)detect.bit(0x00, 0x1F); break;
   case 0x01: rd.s64 = (s32)detect.bit(0x20, 0x3F); break;
+  case 0x02: rd.s64 = (s32)ioctl.bit(0x00, 0x1F); break;
   default:   rd.s64 = 0; break;
   }
 }
@@ -183,6 +188,12 @@ auto CPU::XIOCTL(u64 code) -> void {
     case 0x1: //exit
       printf("[emux] Ares exit requested by application\n");
       platform->event(ares::Event::Shutdown);
+      break;
+    case 0x2: //fast
+      platform->event(ares::Event::FastForwardOn);
+      break;
+    case 0x3: //slow
+      platform->event(ares::Event::FastForwardOff);
       break;
   }
 }
