@@ -9,6 +9,8 @@ auto D3D11Device::initialize(HWND context, bool blocking) -> bool {
   _libra = librashader_load_instance();
   if(!_libra.instance_loaded) {
     print("D3D11: Failed to load librashader: shaders will be disabled\n");
+  } else {
+    setShader(_shader);
   }
 
   return true;
@@ -371,7 +373,15 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   _pDeviceContext->DrawIndexed(6, 0, 0);
 
   // Apply Shader
-  if(_shader != "") applyShader();
+  libra_viewport_t viewport = {};
+  viewport.x = offsetX;
+  viewport.y = offsetY;
+  viewport.width = width;
+  viewport.height = height;
+  if(auto error =_libra.d3d11_filter_chain_frame(&_filterChain,  _pDeviceContext.Get(), _frameCount, _pShaderResourceView.Get(),
+                                                _pRenderTargetView.Get(), &viewport, nullptr, nullptr)) {
+    _libra.error_print(error);
+  }
   
   // Present
   DXGI_PRESENT_PARAMETERS pp = { 0 };
@@ -379,37 +389,6 @@ auto D3D11Device::render(u32 width, u32 height,  u32 windowWidth, u32 windowHeig
   if(!_vsyncEnabled) flags = sd1.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING ? DXGI_PRESENT_ALLOW_TEARING : 0;
   _pSwapChain1->Present1(_vsyncEnabled ? 1 : 0, flags, &pp);
   _frameCount++;
-}
-
-auto D3D11Device::applyShader(void) -> void {
-  ComPtr<ID3D11Texture2D> frameBufferCopy;
-  ComPtr<ID3D11ShaderResourceView> srvCopy;
-  ComPtr<ID3D11Texture2D> d3d11FrameBuffer;
-  
-  hr = _pSwapChain1->GetBuffer(0, __uuidof(ID3D11Texture2D), &d3d11FrameBuffer);
-  if(FAILED(hr)) { print("D3D11: Failed to get frame buffer - 0x", hex(hr), "\n"); return; }
-
-  D3D11_TEXTURE2D_DESC frameBufferDesc;
-  d3d11FrameBuffer->GetDesc(&frameBufferDesc);
-
-  frameBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-  frameBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-
-  hr = _pDevice->CreateTexture2D(&frameBufferDesc, nullptr, &frameBufferCopy);
-  if(FAILED(hr)) { print("D3D11: Failed to create 2D texture - 0x", hex(hr), "\n"); return; }
-
-  _pDeviceContext->CopyResource(frameBufferCopy.Get(), d3d11FrameBuffer.Get());
-  hr = _pDevice->CreateShaderResourceView(frameBufferCopy.Get(), 0, srvCopy.GetAddressOf());
-  if(FAILED(hr)) { print("D3D11: Failed to create SRV copy - 0x", hex(hr), "\n"); return; }
-
-  if(!srvCopy) return;
-
-  frame_d3d11_opt_t frame_opt = { .clear_history = false, .frame_direction = -1 };
-  if(auto error = _libra.d3d11_filter_chain_frame(&_filterChain, _pDeviceContext.Get(), _frameCount, srvCopy.Get(),
-                                                  _pRenderTargetView.Get(), nullptr, nullptr, &frame_opt)) {
-    print("libra render failed\n");
-    _libra.error_print(error);
-  }
 }
 
 auto D3D11Device::setShader(const string& pathname) -> void {
