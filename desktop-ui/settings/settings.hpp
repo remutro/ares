@@ -213,6 +213,7 @@ struct InputSettings : VerticalLayout {
     ComboButton systemList{&indexLayout, Size{~0, 0}};
     ComboButton portList{&indexLayout, Size{~0, 0}};
     ComboButton deviceList{&indexLayout, Size{~0, 0}};
+  Label inputHint{this, Size{~0, 0}, 5};
   TableView inputList{this, Size{~0, ~0}};
   HorizontalLayout controlLayout{this, Size{~0, 0}};
     Label assignLabel{&controlLayout, Size{~0, 0}};

@@ -9,6 +9,7 @@ auto InputSettings::construct() -> void {
   systemList.onChange([&] { systemChange(); });
   portList.onChange([&] { portChange(); });
   deviceList.onChange([&] { deviceChange(); });
+  inputHint.setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
   inputList.setBatchable();
   inputList.setHeadered();
   inputList.onContext([&](auto cell) { eventContext(cell); });
@@ -52,6 +53,15 @@ auto InputSettings::deviceChange() -> void {
   auto& ports = Emulator::enumeratePorts(systemList.selected().text());
   auto& port = ports[portList.selected().offset()];
   auto& device = port.devices[deviceList.selected().offset()];
+  if(systemList.selected().offset() == 0) {
+    inputHint.setText("Map Virtual Gamepads to match your physical controller; compatible systems use these mappings automatically.");
+  } else if(device.hasDirectMappings() && device.mappingMode == MappingMode::VirtualPad) {
+    inputHint.setText("System mappings override Virtual Gamepad defaults; gray mappings are inherited from the Virtual Gamepad.");
+  } else if(device.mappingMode == MappingMode::VirtualPad) {
+    inputHint.setText("This device uses Virtual Gamepad mappings automatically.");
+  } else {
+    inputHint.setText("This device has unique inputs and does not inherit Virtual Gamepad mappings.");
+  }
   for(auto& input : device.inputs) {
     TableViewItem item{&inputList};
     item.setAttribute<u32>("type", (u32)input.type);
@@ -75,8 +85,11 @@ auto InputSettings::refresh() -> void {
       //do not remove identifier from mappings currently being assigned
       if(activeMapping && &activeMapping() == &input && activeBinding == binding) continue;
       auto cell = inputList.item(index).cell(1 + binding);
-      cell.setIcon(input.mapping->bindings[binding].icon());
-      cell.setText(input.mapping->bindings[binding].text());
+      auto& mapping = input.effectiveMapping();
+      cell.setIcon(mapping.bindings[binding].icon());
+      cell.setText(mapping.bindings[binding].text());
+      if(input.inheritedMapping()) cell.setForegroundColor(SystemColor::PlaceholderText);
+      else cell.setForegroundColor();
     }
     index++;
   }
@@ -123,7 +136,7 @@ auto InputSettings::eventClear() -> void {
   auto& port = ports[portList.selected().offset()];
   auto& device = port.devices[deviceList.selected().offset()];
   for(auto& item : inputList.batched()) {
-    auto& mapping = *device.inputs[item.offset()].mapping;
+    auto& mapping = device.inputs[item.offset()].configuredMapping();
     mapping.unbind();
   }
   refresh();
@@ -148,7 +161,7 @@ auto InputSettings::eventAssign(TableViewCell cell, string binding) -> void {
         for(auto& group : *device) {
           if(auto inputID = group.find(binding)) {
             auto groupID = (binding == "X" || binding == "Y") ? HID::Mouse::GroupID::Axis : HID::Mouse::GroupID::Button;
-            activeMapping->mapping->bind(activeBinding, device, groupID, inputID(), 0, 1);
+            activeMapping->configuredMapping().bind(activeBinding, device, groupID, inputID(), 0, 1);
           }
         }
       }
@@ -190,7 +203,7 @@ auto InputSettings::eventInput(std::shared_ptr<HID::Device> device, u32 groupID,
   if(!settingsWindow.focused()) return;
   if(device->isMouse()) return;
 
-  if(activeMapping->mapping->bind(activeBinding, device, groupID, inputID, oldValue, newValue)) {
+  if(activeMapping->configuredMapping().bind(activeBinding, device, groupID, inputID, oldValue, newValue)) {
     activeMapping.reset();
     assignLabel.setText();
     refresh();
