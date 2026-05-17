@@ -37,7 +37,7 @@ struct Settings : Markup::Node {
     bool colorEmulation = true;
     bool deepBlackBoost = false;
     bool interframeBlending = true;
-    bool overscan = false;
+    bool overscan = true;
     bool pixelAccuracy = false;
 
     string quality = "SD";
