@@ -165,6 +165,47 @@ auto Settings::process(bool load) -> void {
     }
   }
 
+  for(auto& emulator : emulators) {
+    string base = string{emulator->name}.replace(" ", "");
+    base.replace("(", "").replace(")", "");
+    for(auto& port : emulator->ports) {
+      for(auto& device : port.devices) {
+        if(!device.hasDirectMappings()) continue;
+        string portName = string{port.name}.replace(" ", ".").replace("[", "").replace("]", "").replace("(", "").replace(")", "").replace("*", "Star").replace("#", "Pound");
+        string deviceName = string{device.name}.replace(" ", ".").replace("[", "").replace("]", "").replace("(", "").replace(")", "").replace("*", "Star").replace("#", "Pound");
+        for(auto& input : device.inputs) {
+          auto& mapping = input.configuredMapping();
+          string inputName = string{input.name}.replace(" ", ".").replace("[", "").replace("]", "").replace("(", ".").replace(")", "").replace("*", "Star").replace("#", "Pound");
+          string name = {base, "/Input/", portName, "/", deviceName, "/", inputName}, value;
+          if(load == 0) for(auto& assignment : mapping.assignments) value.append(assignment, ";");
+          if(load == 0) value.trimRight(";", 1L);
+          bind(string, name, value);
+          if(load == 1) {
+            auto parts = nall::split(value, ";");
+            parts.resize(BindingLimit);
+            for(u32 binding : range(BindingLimit)) mapping.assignments[binding] = parts[binding];
+          }
+        }
+        for(auto& pair : device.pairs) {
+          string pairName = string{pair.name}.replace(" ", ".").replace("[", "").replace("]", "").replace("(", ".").replace(")", "").replace("*", "Star").replace("#", "Pound");
+          for(auto index : range(2)) {
+            string suffix = index == 0 ? "Lo" : "Hi";
+            auto& mapping = index == 0 ? pair.configuredMappingLo() : pair.configuredMappingHi();
+            string name = {base, "/Input/", portName, "/", deviceName, "/", pairName, "/", suffix}, value;
+            if(load == 0) for(auto& assignment : mapping.assignments) value.append(assignment, ";");
+            if(load == 0) value.trimRight(";", 1L);
+            bind(string, name, value);
+            if(load == 1) {
+              auto parts = nall::split(value, ";");
+              parts.resize(BindingLimit);
+              for(u32 binding : range(BindingLimit)) mapping.assignments[binding] = parts[binding];
+            }
+          }
+        }
+      }
+    }
+  }
+
   for(auto& mapping : inputManager.hotkeys) {
     string name = {"Hotkey/", string{mapping.name}.replace(" ", "")}, value;
     if(load == 0) for(auto& assignment : mapping.assignments) value.append(assignment, ";");

@@ -37,7 +37,7 @@ struct Settings : Markup::Node {
     bool colorEmulation = true;
     bool deepBlackBoost = false;
     bool interframeBlending = true;
-    bool overscan = false;
+    bool overscan = true;
     bool pixelAccuracy = false;
 
     string quality = "SD";
@@ -213,6 +213,7 @@ struct InputSettings : VerticalLayout {
     ComboButton systemList{&indexLayout, Size{~0, 0}};
     ComboButton portList{&indexLayout, Size{~0, 0}};
     ComboButton deviceList{&indexLayout, Size{~0, 0}};
+  Label inputHint{this, Size{~0, 0}, 5};
   TableView inputList{this, Size{~0, ~0}};
   HorizontalLayout controlLayout{this, Size{~0, 0}};
     Label assignLabel{&controlLayout, Size{~0, 0}};
