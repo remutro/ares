@@ -28,13 +28,13 @@ auto OptionSettings::construct() -> void {
     settings.general.homebrewMode = homebrewMode.checked();
   });
   homebrewModeLayout.setAlignment(1).setPadding(12_sx, 0);
-    homebrewModeHint.setText("Activate core-specific features to help homebrew developers").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
+    homebrewModeHint.setText("Activate system-specific features to help homebrew developers").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 
   forceInterpreter.setText("Force Interpreter").setChecked(settings.general.forceInterpreter).onToggle([&] {
     settings.general.forceInterpreter = forceInterpreter.checked();
   });
   forceInterpreterLayout.setAlignment(1).setPadding(12_sx, 0);
-    forceInterpreterHint.setText("(Slow) Enable interpreter for cores that default to a recompiler").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
+    forceInterpreterHint.setText("(Slow) Enable interpreter for systems that default to a recompiler").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 
   noFilePromptOption.setText("Disable requests for loading additional media").setChecked(settings.general.noFilePrompt).onToggle([&] {
     settings.general.noFilePrompt = noFilePromptOption.checked();
