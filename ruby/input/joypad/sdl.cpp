@@ -88,20 +88,15 @@ private:
     return Hash::CRC32({(const u8*)s.data(), s.size()}).value();
   }
 
-  static auto guidString(SDL_Joystick* js) -> string {
-    SDL_GUID guid = SDL_GetJoystickGUID(js);
-    char buffer[64]{};
-    SDL_GUIDToString(guid, buffer, sizeof(buffer));
-    return buffer;
-  }
-
   auto enumerate() -> void {
+    for(auto& joypad : joypads) {
+      SDL_CloseJoystick(joypad.handle);
+    }
     joypads.clear();
     int num_joysticks;
     SDL_JoystickID* joysticks = SDL_GetJoysticks(&num_joysticks);
 
-    // Track the number of devices per model to assign unique path IDs
-    std::unordered_map<u32, u32> deviceSlotIndex;
+    std::vector<string> identities;
 
     for(int i = 0; i < num_joysticks; i++) {
       SDL_JoystickID id = joysticks[i];
@@ -123,22 +118,31 @@ private:
         continue;
       }
 
-      u16 vid = SDL_GetJoystickVendor(jp.handle);
-      u16 pid = SDL_GetJoystickProduct(jp.handle);
+      u16 vid = SDL_GetJoystickVendorForID(jp.id);
+      u16 pid = SDL_GetJoystickProductForID(jp.id);
       if(vid == 0) vid = HID::Joypad::GenericVendorID;
       if(pid == 0) pid = HID::Joypad::GenericProductID;
 
       string path = "";
+      bool fallback = false;
       if(const char* serial = SDL_GetJoystickSerial(jp.handle); serial && *serial) {
         path = string{"SER:", serial, "|VID:", vid, "|PID:", pid};
-      } else if(const char* path = SDL_GetJoystickPath(jp.handle); path && *path) {
-        path = string{"PATH:", path, "|VID:", vid, "|PID:", pid};
+      } else if(const char* devicePath = SDL_GetJoystickPathForID(jp.id); devicePath && *devicePath) {
+        path = string{"PATH:", devicePath, "|VID:", vid, "|PID:", pid};
       } else {
-        string modelKey = {"GUID:", guidString(jp.handle), "|VID:", vid, "|PID:", pid};
-        u32 modelID = crc32(modelKey);
-        u32 slot = deviceSlotIndex[modelID]++;
-        path = string{modelKey, "|SLOT:", slot};
+        SDL_GUID guid = SDL_GetJoystickGUIDForID(jp.id);
+        char guidBuffer[64]{};
+        SDL_GUIDToString(guid, guidBuffer, sizeof(guidBuffer));
+        path = string{"GUID:", guidBuffer, "|VID:", vid, "|PID:", pid};
+        fallback = true;
       }
+
+      u32 slot = 0;
+      for(auto& identity : identities) {
+        if(identity == path) slot++;
+      }
+      identities.push_back(path);
+      if(fallback || slot > 0) path.append("|SLOT:", slot);
 
       u32 pathID = crc32(path);
 
