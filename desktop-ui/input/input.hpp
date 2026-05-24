@@ -22,6 +22,7 @@ struct InputMapping {
     auto text() -> string;
 
     std::shared_ptr<HID::Device> device;
+    string deviceIdentifier;
     u64 deviceID = 0;
     u32 groupID = 0;
     u32 inputID = 0;
