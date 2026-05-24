@@ -26,7 +26,7 @@ struct Presentation : Window {
         MenuRadioItem videoOutputIntegerScale;
         MenuRadioItem videoOutputStretch;
         Group videoOutputGroup;
-        Group videoFixedScaleGroup;
+        std::vector<MenuRadioItem> videoFixedScaleItems;
         MenuSeparator videoOutputSeparator;
         MenuRadioItem videoAspectCorrectionNone;
         MenuRadioItem videoAspectCorrectionStandard;

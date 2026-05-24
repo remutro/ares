@@ -668,11 +668,11 @@ auto Presentation::refreshWindowSizeMenu() -> void {
 }
 
 auto Presentation::refreshFixedScaleMenu() -> void {
-  for(auto item : videoFixedScaleGroup.objects<MenuRadioItem>()) {
+  for(auto item : videoFixedScaleItems) {
     videoOutputMenu.remove(item);
     videoOutputGroup.remove(item);
   }
-  videoFixedScaleGroup = {};
+  videoFixedScaleItems.clear();
 
   auto maximumSize = maximumViewportSize();
   u32 maximumWidth = (u32)maximumSize.width();
@@ -689,7 +689,7 @@ auto Presentation::refreshFixedScaleMenu() -> void {
       settings.video.fixedScale = scale;
     });
     videoOutputGroup.append(item);
-    videoFixedScaleGroup.append(item);
+    videoFixedScaleItems.push_back(item);
     if(settings.video.output == "IntegerFixed" && settings.video.fixedScale == scale) item.setChecked();
   }
 }
