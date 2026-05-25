@@ -53,7 +53,9 @@ auto TapeViewer::construct() -> void {
     refresh();
   });
   recordButton.setText("Record").setEnabled(false).onActivate([&] {
-    auto tape = playButton.attribute<ares::Node::Tape>("node");
+    auto tape = recordButton.attribute<ares::Node::Tape>("node");
+    if (!tape)
+      return;
     if (!tape->loaded() || tape->playing() || tape->recording())
       return;
     tape->record();
