@@ -15,6 +15,7 @@ struct Tape : Thread {
 
   auto main() -> void;
   auto step(uint clocks) -> void;
+  auto serialize(serializer&) -> void;
 
 private:
   struct Information {

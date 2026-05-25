@@ -153,4 +153,34 @@ auto Tape::write(n1 data) -> void {
   input = data;
 }
 
+auto Tape::serialize(serializer& s) -> void {
+  u64 position = node ? node->position() : 0;
+  u64 length = node ? node->length() : 0;
+  u64 frequency = node ? node->frequency() : 44100;
+  bool playing = node ? node->playing() : false;
+  bool recording = node ? node->recording() : false;
+
+  Thread::serialize(s);
+  s(position);
+  s(length);
+  s(frequency);
+  s(playing);
+  s(recording);
+  s(range);
+  s(output);
+  s(input);
+  s(data);
+
+  if(s.reading() && node) {
+    node->setPosition(position);
+    node->setLength(length);
+    node->setFrequency(frequency);
+    stream->setFrequency(frequency);
+    Thread::setFrequency(frequency);
+    node->stop();
+    if(playing) node->play();
+    if(recording) node->record();
+  }
+}
+
 }
