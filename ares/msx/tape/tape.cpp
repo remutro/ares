@@ -6,56 +6,79 @@ namespace ares::MSX {
 #include "tray.cpp"
 
 auto Tape::allocate(Node::Port parent) -> Node::Peripheral {
-  node = parent->append<Node::Peripheral>("MSX Tape");
-  position = 0;
-  length = 0;
+  node = parent->append<Node::Tape>("MSX Tape");
+  node->setSupportPlay(true);
+  node->setSupportRecord(false);
+  node->setLoad([&] { return load(); });
+  node->setUnload([&] { unload(); });
+  node->setPosition(0);
+  node->setLength(0);
+  node->setFrequency(44100);
+
   range = 0;
+  output = 0;
+
+  stream = node->append<Node::Audio::Stream>("Audio");
+  stream->setChannels(1);
+  stream->setFrequency(node->frequency());
+  Thread::create(node->frequency(), [&] { Tape::main(); });
 
   return node;
 }
 
-auto Tape::connect() -> void {
-  if(!node->setPak(pak = platform->pak(node))) return;
+auto Tape::connect() -> bool {
+  return node && node->load();
+}
+
+auto Tape::load() -> bool {
+  if(!node->setPak(pak = platform->pak(node))) return false;
 
   information = {};
   information.title = pak->attribute("title");
 
-  auto fd = pak->read("program.tape");
-  if(!fd) return disconnect();
-
-  data.allocate(fd->size());
-  data.load(fd);
-  fd.reset();
-
   range = pak->attribute("range").natural();
-  frequency = pak->attribute("frequency").natural();
-  length = pak->attribute("length").natural();
+  pak->setAttribute("modified", false);
+  node->setFrequency(pak->attribute("frequency").natural());
+  node->setLength(pak->attribute("length").natural());
+  node->setPosition(0);
+  node->setSupportRecord(pak->attribute("writable").boolean());
+  stream->setFrequency(node->frequency());
+  Thread::setFrequency(node->frequency());
 
-  stream = node->append<Node::Audio::Stream>("Audio");
-  stream->setChannels(1);
-  stream->setFrequency(frequency);
-  Thread::create(frequency, [&] { Tape::main(); });
+  if(node->length() != 0) {
+    auto fd = pak->read("program.tape");
+    if(!fd) return false;
+    data.allocate(node->length());
+    data.load(fd);
+    fd.reset();
+  }
+
+  return true;
 }
 
 auto Tape::main() -> void {
-  if (!tapeDeck.state.playing) {
-    stream->frame(0.0f);
+  u64 position = node->position();
+  u64 length = node->length();
+
+  if(node->playing()) {
+    if(position >= length) {
+      output = 0;
+      node->stop();
+      step(1);
+      return;
+    }
+
+    u64 sample = data.read(position++);
+    node->setPosition(position);
+
+    stream->frame((float)sample / (float)range);
+    output = sample > (range / 2);
     step(1);
     return;
   }
 
-  if (position > length) {
-    tapeDeck.state.playing = 0;
-    tapeDeck.play->setValue(false);
-    return;
-  }
-
-  u64 sample = data.read(position);
-  position++;
-
-  stream->frame((float)sample / (float)range);
-  tapeDeck.state.output = sample > (range / 2);
-
+  output = 0;
+  stream->frame(0.0f);
   step(1);
 }
 
@@ -66,11 +89,38 @@ auto Tape::step(uint clocks) -> void {
 
 auto Tape::disconnect() -> void {
   if(!node) return;
+  node->unload();
   Thread::destroy();
-  data.reset();
+  stream = {};
   node = {};
-  position = 0;
-  length = 0;
+}
+
+auto Tape::unload() -> void {
+  if(!pak) return;
+
+  if(pak->attribute("modified").boolean() && data.size() != 0) {
+    auto fd = pak->write("program.tape");
+    fd->resize(data.size() * sizeof(u64));
+    data.save(fd);
+    fd.reset();
+  }
+
+  data.reset();
+  information = {};
+  pak.reset();
+  node->setSupportRecord(false);
+  node->setFrequency(44100);
+  stream->setFrequency(node->frequency());
+  Thread::setFrequency(node->frequency());
+  node->setPosition(0);
+  node->setLength(0);
+  range = 0;
+  output = 0;
+}
+
+auto Tape::read() -> n1 {
+  if(!node || !node->playing()) return 0;
+  return output;
 }
 
 }

@@ -18,9 +18,6 @@ auto ZXSpectrum::load(string location) -> LoadResult {
 }
 
 auto ZXSpectrum::loadTzx(string location) -> LoadResult {
-  auto saveDataLocation = saveLocation(location, "program.tape", ".wav");
-  if(file::exists(saveDataLocation)) return loadWav(saveDataLocation, location);
-
   this->location = location;
   this->manifest = analyze(location);
   auto document = BML::unserialize(manifest);
@@ -37,6 +34,7 @@ auto ZXSpectrum::loadTzx(string location) -> LoadResult {
   pak->setAttribute("frequency", 44100);
   pak->setAttribute("length",    tzx.GetAudioBufferLengthInSamples());
   pak->setAttribute("writable",  true);
+  pak->setAttribute("modified",  false);
   pak->append("manifest.bml",    manifest);
 
   std::vector<u8> output;
@@ -65,6 +63,7 @@ auto ZXSpectrum::loadWav(string location, string originalLocation) -> LoadResult
   pak->setAttribute("frequency",  document["game/frequency"].natural());
   pak->setAttribute("length",     document["game/length"].natural());
   pak->setAttribute("writable",   true);
+  pak->setAttribute("modified",   false);
   pak->append("manifest.bml", manifest);
   if(directory::exists(location)) {
     pak->append("program.tape", vfs::disk::open({location, "program.tape"}, vfs::read));
@@ -107,6 +106,7 @@ auto ZXSpectrum::loadWav(string location, string originalLocation) -> LoadResult
 auto ZXSpectrum::save(string location) -> bool {
   auto document = BML::unserialize(manifest);
   if(!pak) return false;
+  if(!pak->attribute("modified").boolean()) return true;
 
   if(directory::exists(location)) {
     return Pak::save("program.tape", ".sav");

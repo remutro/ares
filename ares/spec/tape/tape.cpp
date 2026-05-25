@@ -38,6 +38,7 @@ auto Tape::load() -> bool {
   information.title = pak->attribute("title");
 
   range = pak->attribute("range").natural();
+  pak->setAttribute("modified", false);
   node->setFrequency(pak->attribute("frequency").natural());
   node->setLength(pak->attribute("length").natural());
   node->setPosition(0);
@@ -93,6 +94,7 @@ auto Tape::main() -> void {
     }
 
     data[position++] = (range >> 1) + (input ? 1 : 0);
+    pak->setAttribute("modified", true);
     node->setPosition(position);
     stream->frame(input ? 1.0f : 0.0f);
     step(1);
@@ -120,7 +122,7 @@ auto Tape::disconnect() -> void {
 auto Tape::unload() -> void {
   if(!pak) return;
 
-  if(data.size() != 0) {
+  if(pak->attribute("modified").boolean() && data.size() != 0) {
     auto fd = pak->write("program.tape");
     fd->resize(data.size() * sizeof(u64));
     data.save(fd);
