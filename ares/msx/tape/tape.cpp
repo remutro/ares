@@ -17,6 +17,7 @@ auto Tape::allocate(Node::Port parent) -> Node::Peripheral {
 
   range = 0;
   output = 0;
+  input = 0;
 
   stream = node->append<Node::Audio::Stream>("Audio");
   stream->setChannels(1);
@@ -77,6 +78,29 @@ auto Tape::main() -> void {
     return;
   }
 
+  if(node->recording()) {
+    if(length <= position) {
+      auto fd = pak->write("program.tape");
+      fd->resize(data.size() * sizeof(u64));
+      data.save(fd);
+      fd.reset();
+
+      length = (position / node->frequency() + 1) * node->frequency();
+      fd = pak->read("program.tape");
+      data.allocate(length, 0);
+      data.load(fd);
+      fd.reset();
+      node->setLength(length);
+    }
+
+    data[position++] = (range >> 1) + (input ? 1 : 0);
+    pak->setAttribute("modified", true);
+    node->setPosition(position);
+    stream->frame(input ? 1.0f : 0.0f);
+    step(1);
+    return;
+  }
+
   output = 0;
   stream->frame(0.0f);
   step(1);
@@ -116,11 +140,17 @@ auto Tape::unload() -> void {
   node->setLength(0);
   range = 0;
   output = 0;
+  input = 0;
 }
 
 auto Tape::read() -> n1 {
   if(!node || !node->playing()) return 0;
   return output;
+}
+
+auto Tape::write(n1 data) -> void {
+  if(!node || !node->recording()) return;
+  input = data;
 }
 
 }

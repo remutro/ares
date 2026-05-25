@@ -11,6 +11,7 @@ struct Tape : Thread {
   auto load() -> bool;
   auto unload() -> void;
   auto read() -> n1;
+  auto write(n1 data) -> void;
 
   auto main() -> void;
   auto step(uint clocks) -> void;
@@ -25,6 +26,7 @@ private:
   VFS::Pak pak;
   u64 range;
   n1 output;
+  n1 input;
   Memory::Writable<u64> data;
 
 };

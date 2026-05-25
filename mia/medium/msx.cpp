@@ -173,6 +173,7 @@ auto MSX::loadTape(string location) -> LoadResult {
   pak->setAttribute("range",      document["game/range"].natural());
   pak->setAttribute("frequency",  document["game/frequency"].natural());
   pak->setAttribute("length",     document["game/length"].natural());
+  pak->setAttribute("writable",   true);
   pak->setAttribute("tape", true);
   pak->setAttribute("modified", false);
   pak->append("manifest.bml", manifest);
@@ -303,7 +304,7 @@ auto MSX::loadCas(string location) -> LoadResult {
   pak->setAttribute("range",      sampleRange);
   pak->setAttribute("frequency",  frequency);
   pak->setAttribute("length",     samples.size());
-  pak->setAttribute("writable",   false);
+  pak->setAttribute("writable",   true);
   pak->setAttribute("tape", true);
   pak->setAttribute("modified", false);
   pak->append("manifest.bml", manifest);
@@ -336,7 +337,7 @@ auto MSX::loadTzx(string location) -> LoadResult {
   pak->setAttribute("range",      (1 << 8) - 1);
   pak->setAttribute("frequency",  44100);
   pak->setAttribute("length",     tzx.GetAudioBufferLengthInSamples());
-  pak->setAttribute("writable",   false);
+  pak->setAttribute("writable",   true);
   pak->setAttribute("tape", true);
   pak->setAttribute("modified", false);
   pak->append("manifest.bml", manifest);
