@@ -21,12 +21,14 @@ auto D3D11Device::shutdown(void) -> void {
   if(_shaderPreset != nullptr) _libra.preset_free(&_shaderPreset);
   clearRenderTarget(true);
   resetRenderTargetView();
-  if(_pSwapChain1) _pSwapChain1.Reset();
+  _buffer.clear();
+  if(_dxgiFactory2) _dxgiFactory2.Reset();
   if(_pDeviceContext) {
     _pDeviceContext->ClearState(); 
     _pDeviceContext->Flush();
     _pDeviceContext.Reset();
   }
+  if(_pSwapChain1) _pSwapChain1.Reset();
   if(_pDevice) _pDevice.Reset();
 }
 
@@ -379,12 +381,6 @@ auto D3D11Device::setShader(const string& pathname) -> void {
   }
 
   if(file::exists(pathname)) {
-    if(_libra.preset_create(pathname.data(), &_shaderPreset) != NULL) {
-      print(string{"D3D11Device: Failed to load shader: ", pathname, "\n"});
-      setShader("");
-      return;
-    }
-
     _shader = pathname;
     string shaderName = Location::file(_shader);
     print("Applying shader: ", slice(shaderName, 0, shaderName.length() - 7), "\n");
