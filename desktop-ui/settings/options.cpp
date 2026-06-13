@@ -78,7 +78,7 @@ auto OptionSettings::construct() -> void {
   if(settings.rewind.frequency == 100) rewindFrequencyOption.item(4).setSelected();
   if(settings.rewind.frequency == 120) rewindFrequencyOption.item(5).setSelected();
   rewindFrequencyOption.onChange([&] {
-    settings.rewind.frequency = rewindFrequencyOption.selected().offset() * 10 + 20;
+    settings.rewind.frequency = rewindFrequencyOption.selected().offset() * 20 + 20;
     program.rewindReset();
   });
 
