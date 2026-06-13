@@ -3,8 +3,8 @@ auto DeveloperSettings::construct() -> void {
   setVisible(false);
 
   gdbLabel.setText("Debug Server Options").setFont(Font().setBold());
-  portLayout.setAlignment(1);
-    portLabel.setText("Port");
+  portLayout.setAlignment(0.5).setPadding(12_sx, 0);
+    portLabel.setText("Port:");
 
     port.setText(integer(settings.developer.debugServerPort));
     port.setEditable(true);
@@ -21,6 +21,7 @@ auto DeveloperSettings::construct() -> void {
 
     portHint.setText("Safe range: 1024 - 32767").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 
+    ipv4Layout.setAlignment(0.5).setPadding(12_sx, 0);
     ipv4.setEnabled(true);
     ipv4.setText("Use IPv4");
     ipv4.setChecked(settings.developer.debugServerUseIPv4);
@@ -30,6 +31,7 @@ auto DeveloperSettings::construct() -> void {
       infoRefresh();
     });
 
+    enabledLayout.setAlignment(0.5).setPadding(12_sx, 0);
     enabled.setEnabled(true);
     enabled.setText("Enabled");
     enabled.setChecked(settings.developer.debugServerEnabled);
@@ -46,7 +48,7 @@ auto DeveloperSettings::construct() -> void {
   homebrewMode.setText("Homebrew Development Mode").setChecked(settings.developer.homebrewMode).onToggle([&] {
     settings.developer.homebrewMode = homebrewMode.checked();
   });
-  homebrewModeLayout.setAlignment(1).setPadding(12_sx, 0);
+  homebrewModeLayout.setAlignment(0.5).setPadding(12_sx, 0);
     homebrewModeHint.setText("Activate system-specific features to help homebrew developers").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 
   forceInterpreter.setText("Force Interpreter").setChecked(settings.developer.forceInterpreter).onToggle([&] {

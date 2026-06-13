@@ -104,6 +104,7 @@ auto Settings::process(bool load) -> void {
 
   bind(natural, "Rewind/Length", rewind.length);
   bind(natural, "Rewind/Frequency", rewind.frequency);
+  bind(boolean, "Rewind/Mute", rewind.mute);
 
   bind(string,  "Paths/Home", paths.home);
   bind(string,  "Paths/Firmware", paths.firmware);

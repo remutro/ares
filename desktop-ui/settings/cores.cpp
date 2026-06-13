@@ -46,7 +46,7 @@ auto CoreSettings::construct() -> void {
       }
     }
   });
-  nintendo64ControllerPakBankLayout.setAlignment(1).setPadding(12_sx, 0);
+  nintendo64ControllerPakBankLayout.setAlignment(0.5).setPadding(12_sx, 0);
     nintendo64ControllerPakBankLabel.setText("Controller Pak Size:");
     nintendo64ControllerPakBankHint.setText("Sets the size of a newly created Controller Pak's available memory").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 
