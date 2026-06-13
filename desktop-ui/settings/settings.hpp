@@ -77,8 +77,9 @@ struct Settings : Markup::Node {
   } general;
 
   struct Rewind {
-    u32 length = 100;
+    u32 length = 80;
     u32 frequency = 10;
+    bool mute = false;
   } rewind;
 
   struct Paths {
@@ -287,9 +288,6 @@ struct OptionSettings : VerticalLayout {
       ComboButton synchronizationList{&synchronizationLayout, Size{0, 0}};
       Label synchronizationHint{&synchronizationLayout, Size{~0, layoutVertSize}};
   Label commonSettingsLabel{this, Size{~0, 0}, 5};
-    HorizontalLayout rewindLayout{this, Size{~0, 0}, 5};
-      CheckLabel rewind{&rewindLayout, Size{0, 0}, 5};
-      Label rewindHint{&rewindLayout, Size{~0, layoutVertSize}};
     HorizontalLayout runAheadLayout{this, Size{~0, 0}, 5};
       CheckLabel runAhead{&runAheadLayout, Size{0, 0}, 5};
       Label runAheadHint{&runAheadLayout, Size{~0, layoutVertSize}};
@@ -299,6 +297,16 @@ struct OptionSettings : VerticalLayout {
     HorizontalLayout noFilePromptLayout{this, Size{~0, 0}, 5};
       CheckLabel noFilePromptOption{&noFilePromptLayout, Size{0, 0}, 5};
       Label noFilePromptHint{&noFilePromptLayout, Size{0, layoutVertSize}};
+  Label rewindSettingsLabel{this, Size{~0, 0}, 5};
+    HorizontalLayout rewindLayout{this, Size{~0, 0}, 5};
+      CheckLabel rewind{&rewindLayout, Size{0, 0}, 5};
+      Label rewindHint{&rewindLayout, Size{~0, layoutVertSize}};
+    HorizontalLayout rewindSettingsLayout{this, Size{~0, 0}, 5};
+      Label rewindFrequencyLabel{&rewindSettingsLayout, Size{0, 0}};
+      ComboButton rewindFrequencyOption{&rewindSettingsLayout, Size{0, 0}};
+      Label rewindLengthLabel{&rewindSettingsLayout, Size{0, 0}};
+      ComboButton rewindLengthOption{&rewindSettingsLayout, Size{0, 0}};
+      CheckLabel rewindMute{&rewindSettingsLayout, Size{0, 0}};
 };
 
 struct FirmwareSettings : VerticalLayout {
@@ -410,15 +418,15 @@ struct DeveloperSettings : VerticalLayout {
 
   Label gdbLabel{this, Size{~0, 0}, 5};
 
-  HorizontalLayout portLayout{this, Size{~0, 0}};
-    Label portLabel{&portLayout, Size{48, 20}};
+  HorizontalLayout portLayout{this, Size{~0, 0}, 5};
+    Label portLabel{&portLayout, Size{0, 0}};
     LineEdit port{&portLayout, Size{~0, 0}};
     Label portHint{&portLayout, Size{~0, layoutVertSize}};
 
-  HorizontalLayout ipv4Layout{this, Size{~0, 0}};
+  HorizontalLayout ipv4Layout{this, Size{~0, 0}, 5};
     CheckLabel ipv4{&ipv4Layout, Size{~0, 0}};
 
-  HorizontalLayout enabledLayout{this, Size{~0, 0}};
+  HorizontalLayout enabledLayout{this, Size{~0, 0}, 5};
     CheckLabel enabled{&enabledLayout, Size{~0, 0}};
 
   Label connectInfo{this, Size{~0, 30}, 5};
