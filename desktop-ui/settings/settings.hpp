@@ -78,7 +78,7 @@ struct Settings : Markup::Node {
 
   struct Rewind {
     u32 length = 80;
-    u32 frequency = 10;
+    u32 frequency = 60;
     bool mute = false;
   } rewind;
 
