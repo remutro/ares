@@ -61,24 +61,24 @@ auto OptionSettings::construct() -> void {
     program.rewindReset();
   }).doToggle();
   rewindLayout.setAlignment(1).setPadding(12_sx, 0);
-    rewindHint.setText("Allows you to reverse time via the rewind hotkey").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
+    rewindHint.setText("Allows you to reverse time via the rewind hotkey (may impact performance)").setFont(Font().setSize(7.0)).setForegroundColor(SystemColor::Sublabel);
 
   rewindSettingsLayout.setAlignment(0.5).setPadding(12_sx, 0);
   rewindFrequencyLabel.setText("Frequency:");
-  rewindFrequencyOption.append(ComboButtonItem().setText("Every 10 frames"));
   rewindFrequencyOption.append(ComboButtonItem().setText("Every 20 frames"));
-  rewindFrequencyOption.append(ComboButtonItem().setText("Every 30 frames"));
   rewindFrequencyOption.append(ComboButtonItem().setText("Every 40 frames"));
-  rewindFrequencyOption.append(ComboButtonItem().setText("Every 50 frames"));
   rewindFrequencyOption.append(ComboButtonItem().setText("Every 60 frames"));
-  if(settings.rewind.frequency == 10) rewindFrequencyOption.item(0).setSelected();
-  if(settings.rewind.frequency == 20) rewindFrequencyOption.item(1).setSelected();
-  if(settings.rewind.frequency == 30) rewindFrequencyOption.item(2).setSelected();
-  if(settings.rewind.frequency == 40) rewindFrequencyOption.item(3).setSelected();
-  if(settings.rewind.frequency == 50) rewindFrequencyOption.item(4).setSelected();
-  if(settings.rewind.frequency == 60) rewindFrequencyOption.item(5).setSelected();
+  rewindFrequencyOption.append(ComboButtonItem().setText("Every 80 frames"));
+  rewindFrequencyOption.append(ComboButtonItem().setText("Every 100 frames"));
+  rewindFrequencyOption.append(ComboButtonItem().setText("Every 120 frames"));
+  if(settings.rewind.frequency == 20) rewindFrequencyOption.item(0).setSelected();
+  if(settings.rewind.frequency == 40) rewindFrequencyOption.item(1).setSelected();
+  if(settings.rewind.frequency == 60) rewindFrequencyOption.item(2).setSelected();
+  if(settings.rewind.frequency == 80) rewindFrequencyOption.item(3).setSelected();
+  if(settings.rewind.frequency == 100) rewindFrequencyOption.item(4).setSelected();
+  if(settings.rewind.frequency == 120) rewindFrequencyOption.item(5).setSelected();
   rewindFrequencyOption.onChange([&] {
-    settings.rewind.frequency = rewindFrequencyOption.selected().offset() * 10 + 10;
+    settings.rewind.frequency = rewindFrequencyOption.selected().offset() * 10 + 20;
     program.rewindReset();
   });
 
